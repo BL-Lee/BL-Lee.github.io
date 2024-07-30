@@ -1,0 +1,10 @@
+function loadFontInfo()
+{
+    
+fetch('./TIMES_INFO.json')
+    .then((response) => response.json())
+    .then((json) => console.log(json));
+//    var data = JSON.parse(TIMES_INFO);
+  //  console.log(data);
+}
+export { loadFontInfo };

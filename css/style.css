@@ -1,0 +1,129 @@
+body
+{
+	width: 100%;
+	margin: auto;
+	font-size: 1.2em;
+	line-height: 1.5em;
+	font-family: "Courier New";
+	/*background-color: #222241;
+	color: #dedede;*/
+}
+.nopadding {
+    line-height:1em !important;
+}
+#glcanvas {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    display: block;
+}
+
+
+#name-header
+{
+	text-align:center;
+	font-size: 4.5em;
+}
+
+#home-header
+{
+	padding-top: 2em;
+	/*display: grid;
+	grid-template-columns: 60% 40%;*/
+	padding-bottom: 1em;
+	text-align: center;
+
+}
+#name-plate
+{
+	padding-top: 10%;
+	grid-column: 1/2;
+}
+#name-descriptor
+{
+	color: rgba(150,150,150,255);
+}
+
+
+#main-nav
+{
+	padding: 1em;
+	display: flex;
+	justify-content: space-between;
+	width:90%;
+}
+#main-nav a:nth-child(1)
+{
+	color:#f124f2;
+}
+#main-nav a:nth-child(2)
+{
+	color:#f224a3;
+}
+#main-nav a:nth-child(3)
+{
+	color:#21a6ed;
+}
+a:hover
+{
+	font-weight: bolder;
+}
+
+.hello-section
+{
+	width: 90%;
+}
+
+.project-block a
+{
+	color: black;
+}
+.project-title
+{
+	display: flex;
+	justify-content: space-around;
+}
+.project-video
+{
+	width: 100%;
+}
+.project-block
+{
+	margin:auto;
+}
+.project-section
+{
+	width:90%;
+}
+
+@media screen and (min-width: 1200px)
+{
+	body
+	{
+		width: 100%;
+		font-size: 1.5em;
+		line-height: 1.5em;
+		font-family: "Courier New";
+	}
+
+	#home-header
+	{
+		padding-top: 4em;
+	}
+
+	#main-nav
+	{
+		padding-top: 3em;
+		display: flex;
+		justify-content: space-around;
+		width:50%;
+	}
+	.hello-section
+	{
+		width:50%;
+	}
+	.project-section
+	{
+		width: 75%;
+	}
+}
