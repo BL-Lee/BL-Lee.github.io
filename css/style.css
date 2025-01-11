@@ -2,7 +2,7 @@ body
 {
 	width: 100%;
 	margin: auto;
-	font-size: 1.2em;
+	font-size: 1.4em;
 	line-height: 1.5em;
 	font-family: "Courier New";
 	/*background-color: #222241;
@@ -18,32 +18,35 @@ body
     display: block;
 }
 
-
-#name-header
-{
-	text-align:center;
-	font-size: 4.5em;
-}
+/* HEADER --------------------------*/
 
 #home-header
 {
-	padding-top: 2em;
-	/*display: grid;
+    padding-top: 2em;
+    /*display: grid;
 	grid-template-columns: 60% 40%;*/
-	padding-bottom: 1em;
-	text-align: center;
+    padding-bottom: 1em;
+    text-align: center;
 
-}
-#name-plate
-{
+
+    #name-header
+    {
+	text-align:center;
+	font-size: 4.5em;
+    }
+
+    #name-plate
+    {
 	padding-top: 10%;
 	grid-column: 1/2;
-}
-#name-descriptor
-{
+    }
+    #name-descriptor
+    {
 	color: rgba(150,150,150,255);
-}
+    }
 
+}
+/* NAV --------------------*/
 
 #main-nav
 {
@@ -52,18 +55,8 @@ body
 	justify-content: space-between;
 	width:90%;
 }
-#main-nav a:nth-child(1)
-{
-	color:#f124f2;
-}
-#main-nav a:nth-child(2)
-{
-	color:#f224a3;
-}
-#main-nav a:nth-child(3)
-{
-	color:#21a6ed;
-}
+
+/* ABOUT -------------------*/
 a:hover
 {
 	font-weight: bolder;
@@ -74,28 +67,78 @@ a:hover
 	width: 90%;
 }
 
-.project-block a
-{
-	color: black;
-}
-.project-title
-{
-	display: flex;
-	justify-content: space-around;
-}
-.project-video
-{
-	width: 100%;
-}
-.project-block
-{
-	margin:auto;
-}
+
+/* PROJECTS ----------------*/
 .project-section
 {
-	width:90%;
+    width:90%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    
+    .project-block
+    {
+	margin: auto;
+	padding: 1em;
+    }
+    
+    .project-title
+    {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	color: white;
+	opacity: 0%;
+	transition: 0.3s;
+    }
+    
+    .project-video
+    {
+	width: 100%;
+    }
+    .project-img
+    {
+	object-fit: cover;
+	height: 256px;
+	width: auto;
+	max-width: 450px;
+
+    }
+    .img-overlay:hover::before
+    {
+	background: rgba(0,0,0,0.5);
+    }
+    .img-overlay::before
+    {
+	content:"";
+	position: absolute;
+	top:0;
+	left:0;
+	height:100%;
+	width:100%;
+	transition: 0.3s;
+	background: rgba(0,0,0,0.0);
+	margin:auto;
+    }
+
+    .img-overlay:hover a
+    {
+	opacity: 100%;
+    }
+
+    .img-overlay
+    {
+	position:relative;
+    }
 }
 
+#experience-section
+{
+    margin: auto;
+}
+
+/* EXPERIENCE ------------------*/
 @media screen and (min-width: 1200px)
 {
 	body
