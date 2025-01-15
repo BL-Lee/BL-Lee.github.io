@@ -67,14 +67,6 @@ function main() {
 	    
 	},
     };
-
-    var textVertexBuffer = [];//submitString("hello. TEXT TEXT", [], fontInfo, canvas, {x:-1.0,y:-1.0});
-
-    var buffers = initBuffers(gl, textVertexBuffer);
-    const texture = loadTexture(gl, "js/TIMES.bmp");
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    let then = 0;
-
     
     // Tell WebGL how to pull out the positions from the position
     // buffer into the vertexPosition attribute.

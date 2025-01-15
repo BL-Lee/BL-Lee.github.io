@@ -2,7 +2,7 @@ body
 {
 	width: 100%;
 	margin: auto;
-	font-size: 1.4em;
+	font-size: 1.0em;
 	line-height: 1.5em;
 	font-family: "Courier New";
 	/*background-color: #222241;
@@ -69,9 +69,10 @@ a:hover
 
 
 /* PROJECTS ----------------*/
-.project-section
+#project-section
 {
     width:90%;
+    margin:auto;
     display: grid;
     grid-template-columns: 1fr 1fr;
     
