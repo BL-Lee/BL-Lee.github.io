@@ -47,6 +47,24 @@ function initPipeline(device, presentationFormat)
           dt: f32,
           buffer: f32
       };
+
+fn hsl_n(magnitude: f32, n: f32, angle: f32) -> f32 {
+ let k = (n + angle / 60) % 6;
+ return magnitude - magnitude*f32(max(0, min(min(k, 4 - k), 1)));
+}
+
+
+fn to_out_color(angle: f32, magnitude: f32) -> vec4f {
+
+  
+  let output = vec4f(hsl_n(magnitude,5, angle),
+                     hsl_n(magnitude,3, angle),
+                     hsl_n(magnitude,1, angle)
+                    , 1.0);  
+  //let output = vec4f(cos(angle), cos(angle + 120), cos(angle - 120), 1.0) * magnitude;
+  return output;
+}
+
        @group(0) @binding(0) var readVel: texture_storage_2d<rgba32float, read>;
        @group(0) @binding(1) var writeVel: texture_storage_2d<rgba32float, write>;
        @group(0) @binding(2) var<uniform> uTime: timeUniform;
@@ -58,32 +76,35 @@ function initPipeline(device, presentationFormat)
           let time = uTime.time;
           let vid = id.x * 2 + u32(uTime.buffer);
           let coord = vec2u(vid % 127, vid / 127);
-          let topOut = (textureLoad(readVel, coord + vec2u(0,1)));
-          let rightOut = (textureLoad(readVel, coord + vec2u(1,0)));
-          let prevVel = (textureLoad(readVel, coord));
-          let totalInput = (rightOut.r + prevVel.r + topOut.g + prevVel.g);
+          let topOut = textureLoad(readVel, vec2u(coord + vec2u(0,1)));
+          let leftOut = textureLoad(readVel, vec2u(vec2i(coord) + vec2i(-1,0)));
+          let bottomOut = textureLoad(readVel, vec2u(vec2i(coord) + vec2i(0,-1)));
+          let rightOut = textureLoad(readVel, vec2u(coord + vec2u(1,0)));
+          let prevOut = textureLoad(readVel, coord);
+          let input = vec4f(leftOut.r, bottomOut.g, rightOut.b, topOut.a);
+          //let input = vec4f(rightOut.r - prevOut.r, -prevOut.g + topOut.g, 0.0, 1.0);
+          let totalInput = leftOut.r + bottomOut.g + rightOut.b + topOut.a;
+          //let totalInput = topOut.g - prevOut.r - prevOut.g + rightOut.r;
 
-          let output = prevVel + totalInput / 4.0 ;
+          let output = vec4f(totalInput / 4.0);
 
           var color = output;
-///          var color = vec4f(1.0 - uTime.buffer, uTime.buffer, 0.0, 1.0);
-         if (coord.x >= 96 && coord.x < 105 && coord.y > 96 && coord.y < 105)
-         //if (coord.x == 6 && coord.y == 5)
+          if (coord.x == 65 && coord.y == 55)
           {
-             color.r = -8.0;
-             color.g = 8.0;
+             color = vec4(3.0,0.0,0.0,0.0);
           }
+          if (coord.x >= 96 && coord.x < 105 && coord.y > 90 && coord.y < 96)
+          {
+             color = vec4(0.0,1.0,0.0,0.0);
 
+          }
+          
           textureStore(writeVel, coord, color);
 
-          let newRightOut = vec4(rightOut.r - totalInput / 4.0, rightOut.gba);
-          textureStore(writeVel, coord + vec2u(1,0), newRightOut);
-          let newTopOut = vec4(topOut.r, topOut.g - totalInput  / 4.0, topOut.ba);
-          textureStore(writeVel, coord + vec2u(0,1), newTopOut);
-
-          let outColor = vec4f((color.rg + 1.0) / 2.0, totalInput, 1.0);
-          //let outColor = vec4f(uTime.buffer, vec2f(coord) / 128 ,1.0);
-          //let outColor = vec4f(totalInput);
+           let angle = atan2(leftOut.r - rightOut.b, bottomOut.g - topOut.a);
+           
+           let outColor = to_out_color(180 *  angle / 3.1415 , min(1.0,totalInput * 8.0));
+//          let outColor = (input + 1.0) / 2.0;
           textureStore(swapChain, coord, outColor);
       }
     `,
@@ -110,7 +131,7 @@ function initBuffers(device)
     return {uniformBuffer}
 }
 
-function initUniforms(device, pipeline, readTexture, writeTexture, swapChain,uniformBuffer)
+function initUniforms(device, pipeline, rTex, wTex, swapChain,uniformBuffer)
 {
     // Setup a bindGroup to tell the shader which
     // buffer to use for the computation
@@ -118,8 +139,8 @@ function initUniforms(device, pipeline, readTexture, writeTexture, swapChain,uni
 	label: 'bindGroup for canvas',
 	layout: pipeline.getBindGroupLayout(0),
 	entries: [
-	    { binding: 0, resource:  readTexture.createView() },
-	    { binding: 1, resource:  writeTexture.createView() },
+	    { binding: 0, resource:  rTex.createView() },
+	    { binding: 1, resource:  wTex.createView() },
 	    { binding: 2, resource: {buffer : uniformBuffer}  },
 	    { binding: 3, resource:  swapChain.createView() },
 	],
@@ -148,12 +169,12 @@ function endRenderPass(device, encoder)
 
 function render(info)
 {
-    info.timeValues.set([info.timeValues[0] + 0.032, 0.032, 0.0], 0);
+    info.timeValues.set([info.timeValues[0] + 0.032, 0.032, 1.0], 0);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.timeValues);
     const canvasTexture = info.context.getCurrentTexture();
 
     let bindGroup = initUniforms(info.device, info.pipeline,
-				   info.writeBuffer, info.readBuffer,
+				   info.readBuffer, info.writeBuffer,
 				   canvasTexture, info.uniformBuffer );
     {
 
@@ -166,11 +187,11 @@ function render(info)
 	endRenderPass(info.device, encoder);
     }
 
-    info.timeValues.set([info.timeValues[0] + 0.032, 0.032, 1.0], 0);
+    info.timeValues.set([info.timeValues[0], 0.032, 0.0], 0);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.timeValues);
-     bindGroup = initUniforms(info.device, info.pipeline,
-				   info.writeBuffer, info.readBuffer,
-				   canvasTexture, info.uniformBuffer );
+     //bindGroup = initUniforms(info.device, info.pipeline,
+//				   info.readBuffer, info.writeBuffer,
+//				   canvasTexture, info.uniformBuffer );
 
     {
 	let {renderPass, encoder} = beginRenderPass(info.device);
@@ -241,7 +262,7 @@ async function setup()
 	globalInfo.writeBuffer = swap;
 
 	render(globalInfo);
-    }, 1000);
+    }, 32);
 
     //render(globalInfo);
     
