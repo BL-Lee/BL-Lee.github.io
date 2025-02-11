@@ -1,4 +1,161 @@
+var fluidProgram = `struct timeUniform {
+        time: f32,
+        dt: f32,
+        buffer: f32
+    };
 
+fn hsl_n(magnitude: f32, n: f32, angle: f32) -> f32 {
+    let k = (n + angle / 60) % 6;
+    return magnitude - magnitude*f32(max(0, min(min(k, 4 - k), 1)));
+}
+
+
+fn to_out_color(angle: f32, magnitude: f32) -> vec4f {
+
+    
+    let output = vec4f(hsl_n(magnitude,5, angle),
+                       hsl_n(magnitude,3, angle),
+                       hsl_n(magnitude,1, angle)
+                       , 1.0);  
+    //let output = vec4f(cos(angle), cos(angle + 120), cos(angle - 120), 1.0) * magnitude;
+    return output;
+}
+
+@group(0) @binding(0) var readVel: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(1) var writeVel: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(2) var<uniform> uTime: timeUniform;
+@group(0) @binding(3) var swapChain: texture_storage_2d<bgra8unorm, write>;
+@compute @workgroup_size(1) fn computeSomething(
+    @builtin(global_invocation_id) id: vec3u
+) {
+
+    let time = uTime.time;
+    let vid = id.x * 2 + u32(uTime.buffer);
+    let coord = vec2u(vid % 127, vid / 127);
+    let topOut = textureLoad(readVel, vec2u(coord + vec2u(0,1)));
+    let leftOut = textureLoad(readVel, vec2u(vec2i(coord) + vec2i(-1,0)));
+    let bottomOut = textureLoad(readVel, vec2u(vec2i(coord) + vec2i(0,-1)));
+    let rightOut = textureLoad(readVel, vec2u(coord + vec2u(1,0)));
+    let prevOut = textureLoad(readVel, coord);
+    let input = vec4f(leftOut.r, bottomOut.g, rightOut.b, topOut.a);
+    //let input = vec4f(rightOut.r - prevOut.r, -prevOut.g + topOut.g, 0.0, 1.0);
+    let totalInput = leftOut.r + bottomOut.g + rightOut.b + topOut.a;
+    //let totalInput = topOut.g - prevOut.r - prevOut.g + rightOut.r;
+
+    let output = vec4f(totalInput / 4.0);
+
+    var color = output;
+    if (coord.x == 65 && coord.y == 55)
+    {
+        color = vec4(3.0,0.0,0.0,0.0);
+    }
+    if (coord.x >= 96 && coord.x < 105 && coord.y > 90 && coord.y < 96)
+    {
+        color = vec4(0.0,1.0,0.0,0.0);
+
+    }
+    
+    textureStore(writeVel, coord, color);
+
+    let angle = atan2(leftOut.r - rightOut.b, bottomOut.g - topOut.a);
+    
+    let outColor = to_out_color(180 *  angle / 3.1415 , min(1.0,totalInput * 8.0));
+    //          let outColor = (input + 1.0) / 2.0;
+    textureStore(swapChain, coord, outColor);
+}
+`;
+
+var slimeSensorProgram = `
+struct timeUniform {
+        time: f32,
+        dt: f32,
+        buffer: f32
+    };
+fn sampleLinear(uv : vec2f) -> vec4f {
+
+    let texel = vec2u(uv * 127);
+    let BL = textureLoad(readVel, texel);
+    let BR = textureLoad(readVel, texel + vec2u(1,0));
+    let TL = textureLoad(readVel, texel + vec2u(0,1));
+    let TR = textureLoad(readVel, texel + vec2u(1,1));
+
+    let mixVal = fract(uv);
+
+    return mix(mix(BL, BR, mixVal.x), mix(TL, TR, mixVal.x), mixVal.y);
+
+}
+
+@group(0) @binding(0) var readVel: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(1) var writeVel: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(2) var<uniform> uTime: timeUniform;
+@group(0) @binding(3) var swapChain: texture_storage_2d<bgra8unorm, write>;
+@compute @workgroup_size(1) fn computeSomething(
+    @builtin(global_invocation_id) id: vec3u
+) {
+
+//R: angle (0-1)
+//G: density/trail
+
+    let PI = 3.14159;
+
+    let time = uTime.time;
+    let vid = id.x * 2 + u32(uTime.buffer);
+    let coord = vec2u(vid % 127, vid / 127);
+    let currentValue = textureLoad(readVel, vec2u(coord));
+
+    //Sensor
+    let angle = currentValue.r * PI * 2;
+    let sensorAngle = 30 / 180 * PI;
+    let sensorDir = vec2f(sin(angle), cos(angle));
+    let sensorDist = 2.0;
+    let uvFront = vec2f(sin(angle), cos(angle)) * 127 * sensorDist + vec2f(coord);
+    let uvFrontLeft = vec2f(sin(angle - sensorAngle), cos(angle - sensorAngle)) * 127 * sensorDist + vec2f(coord);
+    let uvFrontRight = vec2f(sin(angle + sensorAngle), cos(angle + sensorAngle)) * 127 * sensorDist + vec2f(coord);
+
+    let valFront = sampleLinear(uvFront);
+    let valFrontLeft = sampleLinear(uvFrontLeft);
+    let valFrontRight = sampleLinear(uvFrontRight);
+
+    var newRotation = 0.0;
+    let rotationAmount = 0.7;
+    if (valFront.g > valFrontLeft.g && valFront.g > valFrontRight.g)
+    {
+       // no change
+    }
+    if (valFront.g < valFrontLeft.g && valFront.g < valFrontRight.g)
+    {
+      newRotation = fract(sin(dot(vec2f(id.xy) * time, vec2f(12.9898, 78.233))) * 43758.5453) * rotationAmount;
+    }
+    if (valFront.g < valFrontLeft.g && valFront.g > valFrontRight.g)
+    {
+      newRotation = -rotationAmount;
+    }
+    if (valFront.g > valFrontLeft.g && valFront.g < valFrontRight.g)
+    {
+      newRotation = rotationAmount;
+    }
+    newRotation += angle;
+    newRotation /= PI * 2.0;
+
+    //Deposit/reposition
+
+
+
+    var outColor = vec4f(valFront.g, currentValue.g, 0.0, 1.0);
+
+    if (time < 0.1) {
+
+      outColor = vec4f(fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453),
+fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453),
+0.0,
+1.0
+);
+    }
+
+    textureStore(swapChain, coord, outColor);
+    textureStore(writeVel, coord, outColor);
+}
+`;
 
 
 async function initWebGPU()
@@ -41,73 +198,8 @@ function initPipeline(device, presentationFormat)
 	label: 'doubling compute module',
 	//RG -> horizontal output, vertical output respectively
 	//Each pixel stores bottom and left values
-	code: `
-      struct timeUniform {
-          time: f32,
-          dt: f32,
-          buffer: f32
-      };
-
-fn hsl_n(magnitude: f32, n: f32, angle: f32) -> f32 {
- let k = (n + angle / 60) % 6;
- return magnitude - magnitude*f32(max(0, min(min(k, 4 - k), 1)));
-}
-
-
-fn to_out_color(angle: f32, magnitude: f32) -> vec4f {
-
-  
-  let output = vec4f(hsl_n(magnitude,5, angle),
-                     hsl_n(magnitude,3, angle),
-                     hsl_n(magnitude,1, angle)
-                    , 1.0);  
-  //let output = vec4f(cos(angle), cos(angle + 120), cos(angle - 120), 1.0) * magnitude;
-  return output;
-}
-
-       @group(0) @binding(0) var readVel: texture_storage_2d<rgba32float, read>;
-       @group(0) @binding(1) var writeVel: texture_storage_2d<rgba32float, write>;
-       @group(0) @binding(2) var<uniform> uTime: timeUniform;
-       @group(0) @binding(3) var swapChain: texture_storage_2d<${presentationFormat}, write>;
-       @compute @workgroup_size(1) fn computeSomething(
-         @builtin(global_invocation_id) id: vec3u
-       ) {
-
-          let time = uTime.time;
-          let vid = id.x * 2 + u32(uTime.buffer);
-          let coord = vec2u(vid % 127, vid / 127);
-          let topOut = textureLoad(readVel, vec2u(coord + vec2u(0,1)));
-          let leftOut = textureLoad(readVel, vec2u(vec2i(coord) + vec2i(-1,0)));
-          let bottomOut = textureLoad(readVel, vec2u(vec2i(coord) + vec2i(0,-1)));
-          let rightOut = textureLoad(readVel, vec2u(coord + vec2u(1,0)));
-          let prevOut = textureLoad(readVel, coord);
-          let input = vec4f(leftOut.r, bottomOut.g, rightOut.b, topOut.a);
-          //let input = vec4f(rightOut.r - prevOut.r, -prevOut.g + topOut.g, 0.0, 1.0);
-          let totalInput = leftOut.r + bottomOut.g + rightOut.b + topOut.a;
-          //let totalInput = topOut.g - prevOut.r - prevOut.g + rightOut.r;
-
-          let output = vec4f(totalInput / 4.0);
-
-          var color = output;
-          if (coord.x == 65 && coord.y == 55)
-          {
-             color = vec4(3.0,0.0,0.0,0.0);
-          }
-          if (coord.x >= 96 && coord.x < 105 && coord.y > 90 && coord.y < 96)
-          {
-             color = vec4(0.0,1.0,0.0,0.0);
-
-          }
-          
-          textureStore(writeVel, coord, color);
-
-           let angle = atan2(leftOut.r - rightOut.b, bottomOut.g - topOut.a);
-           
-           let outColor = to_out_color(180 *  angle / 3.1415 , min(1.0,totalInput * 8.0));
-//          let outColor = (input + 1.0) / 2.0;
-          textureStore(swapChain, coord, outColor);
-      }
-    `,
+	code: slimeSensorProgram,
+//	code: fluidProgram,
     });
 
     const pipeline = device.createComputePipeline({
@@ -262,7 +354,7 @@ async function setup()
 	globalInfo.writeBuffer = swap;
 
 	render(globalInfo);
-    }, 32);
+    }, 100);
 
     //render(globalInfo);
     
