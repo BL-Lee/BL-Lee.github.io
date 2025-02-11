@@ -199,7 +199,6 @@ function initPipeline(device, presentationFormat)
 	//RG -> horizontal output, vertical output respectively
 	//Each pixel stores bottom and left values
 	code: slimeSensorProgram,
-//	code: fluidProgram,
     });
 
     const pipeline = device.createComputePipeline({
@@ -261,7 +260,7 @@ function endRenderPass(device, encoder)
 
 function render(info)
 {
-    info.timeValues.set([info.timeValues[0] + 0.032, 0.032, 1.0], 0);
+    info.timeValues.set([info.timeValues[0] + 0.032, 0.32, 1.0], 0);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.timeValues);
     const canvasTexture = info.context.getCurrentTexture();
 
@@ -274,12 +273,13 @@ function render(info)
 	renderPass.setPipeline(info.pipeline);
 	renderPass.setBindGroup(0, bindGroup);
 
-	renderPass.dispatchWorkgroups(canvasTexture.width * canvasTexture.height / 2);
+	//renderPass.dispatchWorkgroups(canvasTexture.width * canvasTexture.height / 2);
+	renderPass.dispatchWorkgroups(canvasTexture.width, canvasTexture.height);
 	renderPass.end(info.device, encoder);
 	endRenderPass(info.device, encoder);
     }
 
-    info.timeValues.set([info.timeValues[0], 0.032, 0.0], 0);
+/*    info.timeValues.set([info.timeValues[0], 0.032, 0.0], 0);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.timeValues);
      //bindGroup = initUniforms(info.device, info.pipeline,
 //				   info.readBuffer, info.writeBuffer,
@@ -295,7 +295,7 @@ function render(info)
 	endRenderPass(info.device, encoder);
 
     }
-
+*/
 /*
     const copyEncoder = info.device.createCommandEncoder({label: "copy to swapchain"})
     copyEncoder.copyTextureToTexture({texture : info.writeBuffer},
@@ -354,10 +354,25 @@ async function setup()
 	globalInfo.writeBuffer = swap;
 
 	render(globalInfo);
-    }, 100);
 
+    }, 100);
     //render(globalInfo);
     
     return globalInfo;
 }
-setup();
+
+setup().then((globalInfo) =>
+    {
+addEventListener("keypress", function(event) {
+        //Swap read/write buffers
+	let swap = globalInfo.readBuffer;
+	globalInfo.readBuffer = globalInfo.writeBuffer;
+	globalInfo.writeBuffer = swap;
+
+	render(globalInfo);
+    
+});
+	
+    });
+
+
