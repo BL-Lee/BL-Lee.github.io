@@ -74,15 +74,52 @@ struct timeUniform {
 fn sampleLinear(uv : vec2f) -> vec4f {
 
     let texel = vec2u(uv * 127);
-    let BL = textureLoad(readVel, texel);
-    let BR = textureLoad(readVel, texel + vec2u(1,0));
-    let TL = textureLoad(readVel, texel + vec2u(0,1));
-    let TR = textureLoad(readVel, texel + vec2u(1,1));
+    let BL = textureLoad(readVel, wrapTexel(texel));
+    let BR = textureLoad(readVel, wrapTexel(texel + vec2u(1,0)));
+    let TL = textureLoad(readVel, wrapTexel(texel + vec2u(0,1)));
+    let TR = textureLoad(readVel, wrapTexel(texel + vec2u(1,1)));
 
     let mixVal = fract(uv);
 
     return mix(mix(BL, BR, mixVal.x), mix(TL, TR, mixVal.x), mixVal.y);
 
+}
+fn wrapTexel(texel : vec2u) -> vec2u {
+   var newTexel = vec2u(texel);
+   if (texel.x < 0)
+     {
+         newTexel.x = 127 - texel.x;
+     }
+   if (texel.y < 0)
+     {
+         newTexel.y = 127 - texel.y;
+     }
+   if (texel.x > 126)
+     {
+         newTexel.x = texel.x - 127;
+     }
+   if (texel.y > 126)
+     {
+         newTexel.y = texel.y - 127;
+     }
+
+   return vec2u(newTexel);
+}
+
+fn wrap(uv : vec2f) -> vec2f {
+
+
+  var newUv = fract(uv);
+   if (uv.x < 0.0)
+     {
+         newUv.x = 1.0 - uv.x;
+     }
+   if (uv.y < 0.0)
+     {
+         newUv.y = 1.0 - uv.y;
+     }
+
+   return newUv;
 }
 
 @group(0) @binding(0) var readVel: texture_storage_2d<rgba32float, read>;
@@ -96,64 +133,72 @@ fn sampleLinear(uv : vec2f) -> vec4f {
 //R: angle (0-1)
 //G: density/trail
 
-    let PI = 3.14159;
-
+    let PI = 3.14159265358979323;
     let time = uTime.time;
-    let vid = id.x * 2 + u32(uTime.buffer);
-    let coord = vec2u(vid % 127, vid / 127);
+    let coord = id.xy;
+    let uv = vec2f(coord) / 127.0;
     let currentValue = textureLoad(readVel, vec2u(coord));
 
     //Sensor
-    let angle = currentValue.r * PI * 2;
-    let sensorAngle = 30 / 180 * PI;
-    let sensorDir = vec2f(sin(angle), cos(angle));
-    let sensorDist = 2.0;
-    let uvFront = vec2f(sin(angle), cos(angle)) * 127 * sensorDist + vec2f(coord);
-    let uvFrontLeft = vec2f(sin(angle - sensorAngle), cos(angle - sensorAngle)) * 127 * sensorDist + vec2f(coord);
-    let uvFrontRight = vec2f(sin(angle + sensorAngle), cos(angle + sensorAngle)) * 127 * sensorDist + vec2f(coord);
+    let angle = currentValue.r * PI * 2.0;
+    let sensorAngle = 20.0 / 180.0 * PI;
+    let sensorDist = 1.0 / 126;
+    let uvFront = wrap((vec2f(sin(angle), cos(angle)) * sensorDist) + uv);
+    let uvFrontLeft = wrap((vec2f(sin(angle - sensorAngle), cos(angle - sensorAngle)) * sensorDist) + uv);
+    let uvFrontRight = wrap((vec2f(sin(angle + sensorAngle), cos(angle + sensorAngle)) * sensorDist) + uv);
 
     let valFront = sampleLinear(uvFront);
     let valFrontLeft = sampleLinear(uvFrontLeft);
     let valFrontRight = sampleLinear(uvFrontRight);
 
-    var newRotation = 0.0;
-    let rotationAmount = 0.7;
-    if (valFront.g > valFrontLeft.g && valFront.g > valFrontRight.g)
-    {
-       // no change
-    }
-    if (valFront.g < valFrontLeft.g && valFront.g < valFrontRight.g)
-    {
-      newRotation = fract(sin(dot(vec2f(id.xy) * time, vec2f(12.9898, 78.233))) * 43758.5453) * rotationAmount;
-    }
-    if (valFront.g < valFrontLeft.g && valFront.g > valFrontRight.g)
-    {
-      newRotation = -rotationAmount;
-    }
-    if (valFront.g > valFrontLeft.g && valFront.g < valFrontRight.g)
+
+    let rotationAmount = 30.0 / 180.0 * PI;
+    var newRotation = 0.0;//fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453) * 0.005;
+    let leftDiff = -valFront.b + valFrontLeft.b;
+    let rightDiff = -valFront.b + valFrontRight.b;
+    if (leftDiff > 0.05)
     {
       newRotation = rotationAmount;
     }
-    newRotation += angle;
-    newRotation /= PI * 2.0;
+    if (rightDiff > 0.05)
+    {
+      newRotation = -rotationAmount;
+    }
+    let nextValue = fract((newRotation + angle) / (PI * 2.0));
 
     //Deposit/reposition
+/*
+    for (var i: i32 = -1; i < 1; i++) {
+       for (var j: i32 = -1; j < 1; j++) {
+          if (i == 0 && j == 0)
+              {
+                 continue;
+              }
+          
+       
+    }
+*/
+    let priorUv = wrap(uv - vec2f(sin(angle), cos(angle)) * sensorDist);
+    let priorValue = sampleLinear(priorUv);
 
+    //var outColor = vec4f(valFront.g, currentValue.g, 0.0, 1.0);
+    //var outColor = vec4f((sin(newRotation) + 1.0) / 2.0, (cos(newRotation) + 1.0) / 2.0, priorValue.g, 1.0);
+    //var outColor = vec4f(newRotation, currentValue.b * 0.9 + priorValue.b * 0.1, 0.0, 1.0);
+    //var outColor = vec4f( 0.0, currentValue.g * 0.1 + priorValue.g * 0.90, currentValue.g * 0.2 + currentValue.b * 0.8, 1.0);
+let priorDir = vec2f(sin(priorValue.r), cos(priorValue.r));
+let thisDir = vec2f(sin(currentValue.r), cos(currentValue.r));
+    var outColor = vec4f(dot(priorDir, thisDir),0.0,0.0, 1.0);
+    var nextWrite = vec4f(nextValue, currentValue.g  * 0.1 + priorValue.g * 0.90, currentValue.g * 0.2 + currentValue.b * 0.8, 1.0);
+    if (time < 0.01) {
 
-
-    var outColor = vec4f(valFront.g, currentValue.g, 0.0, 1.0);
-
-    if (time < 0.1) {
-
-      outColor = vec4f(fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453),
-fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453),
-0.0,
-1.0
-);
+      nextWrite = vec4f(fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453),
+                       fract(sin(dot(vec2f(id.yx), vec2f(12.9898, 78.233))) * 43758.5453),
+                       fract(sin(dot(vec2f(id.xy), vec2f(12.9898, 78.233))) * 43758.5453),
+                       1.0);
     }
 
     textureStore(swapChain, coord, outColor);
-    textureStore(writeVel, coord, outColor);
+    textureStore(writeVel, coord, nextWrite);
 }
 `;
 
@@ -260,7 +305,7 @@ function endRenderPass(device, encoder)
 
 function render(info)
 {
-    info.timeValues.set([info.timeValues[0] + 0.032, 0.32, 1.0], 0);
+    info.timeValues.set([info.timeValues[0] + 0.002, 0.002, 1.0], 0);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.timeValues);
     const canvasTexture = info.context.getCurrentTexture();
 
@@ -355,9 +400,9 @@ async function setup()
 
 	render(globalInfo);
 
-    }, 100);
+    }, 32);
     //render(globalInfo);
-    
+
     return globalInfo;
 }
 
@@ -376,3 +421,11 @@ addEventListener("keypress", function(event) {
     });
 
 
+/*
+
+  COMPUTE pass ->
+  Agents -> sample sensors/move
+  Draw pass ->
+  agents -> draw as pixels
+
+ */
