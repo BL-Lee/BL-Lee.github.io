@@ -35,7 +35,7 @@ body
     #name-header
     {
 	text-align:center;
-	font-size: 4.5em;
+	font-size: 4em;
     }
 
     #name-plate
@@ -55,7 +55,8 @@ body
 {
 	padding: 1em;
 	display: flex;
-	justify-content: space-between;
+	justify-content: space-around;
+	flex-wrap: wrap;
 	margin: auto;
 	width:90%;
 }
@@ -68,7 +69,9 @@ a:hover
 
 .hello-section
 {
-	width: 90%;
+    width: 90%;
+    margin: auto;
+    padding: 2em;
 }
 
 
@@ -85,7 +88,7 @@ a:hover
     {
 	margin: auto;
 	padding: 1em;
-	width: 100%;
+	width: 80%;
 	aspect-ratio: 1/1;
 	border-color: rgb(234 234 234);
         border-style: solid;
@@ -149,6 +152,12 @@ a:hover
     margin: auto;
 }
 
+footer
+{
+    margin: auto;
+    text-align: center;
+    padding-bottom: 2em;
+}
 
 @media only screen and (max-width: 600px) {
 body
@@ -163,43 +172,29 @@ body
 {
     grid-template-columns: 1fr;
     margin:auto;
+    .project-block
+    {
+	padding: 0;
+	width: 100%;
+    }
+    .img-overlay::before
+    {
+	height:0;
+	width:0;
+    }
+
+
 }
-main
+.hello-section
 {
+    width: 100%;
     text-align:center;
+    padding: 0;
 }
-}
-/*
 
-@media screen and (min-width: 1200px)
+/*.project-title:active
 {
-	body
-	{
-		width: 100%;
-		font-size: 1.5em;
-		line-height: 1.5em;
-		font-family: "Courier New";
-	}
+    opacity: 100%;
+}*/
 
-	#home-header
-	{
-		padding-top: 4em;
-	}
-
-	#main-nav
-	{
-		padding-top: 3em;
-		display: flex;
-		justify-content: space-around;
-		width:50%;
-	}
-	.hello-section
-	{
-		width:50%;
-	}
-	.project-section
-	{
-		width: 75%;
-	}
 }
-*/
