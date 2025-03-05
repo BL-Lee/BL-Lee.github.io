@@ -59,6 +59,12 @@ body
 	flex-wrap: wrap;
 	margin: auto;
 	width:90%;
+	position: sticky;
+	top: 0;
+	background-color: rgb(156 202 239);
+	a {
+	    color:black;  
+	}
 }
 
 /* ABOUT -------------------*/
@@ -72,10 +78,18 @@ a:hover
     width: 90%;
     margin: auto;
     padding: 2em;
+    text-align:center;
+    
 }
 
 
 /* PROJECTS ----------------*/
+#projects-header
+{
+    margin:auto;
+    text-align:center;
+
+}
 #project-section
 {
     width:90%;
@@ -157,7 +171,7 @@ body
 {
 	max-width: 100%;
 	margin: auto;
-	font-size:1em;
+	font-size: 1em;
 }    
 
 /* PROJECTS ----------------*/
@@ -165,6 +179,10 @@ body
 {
     max-width:100%;
 }*/
+#projects-header
+{
+    padding-top:1em;
+}
 #project-section
 {
     max-width: 100%;
