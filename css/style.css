@@ -83,84 +83,62 @@ a:hover
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 0.5em;
-
-    .project-block
-    {
-	margin: auto;
-	padding: 1em;
-	width: 80%;
-	aspect-ratio: 1/1;
-	border-color: rgb(234 234 234);
-        border-style: solid;
-        border-width: 0.1em;
-    }
-    
-    .project-title
-    {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	text-align: center;
-	color: white;
-	opacity: 0%;
-	transition: 0.3s;
-    }
-    
-    .project-video
-    {
-	width: 100%;
-    }
-    .project-img
-    {
-	max-width: 100%;
-	object-fit: contain;
-    }
-/*    .img-overlay:hover::before
-    {
-	background: rgba(0,0,0,0.5);
-    }
-    .img-overlay::before
-    {
-	content:"";
-	position: absolute;
-	top:0;
-	left:0;
-	height:100%;
-	width:100%;
-	transition: 0.3s;
-	background: rgba(0,0,0,0.0);
-	margin:auto;
-    }
-
-    .img-overlay:hover a
-    {
-	opacity: 100%;
-    }
-*/
-    .project-background
-    {
-	position: absolute;
-	opacity: 0%;
-	width: 100%;
-	height: 100%;
-	background-color: black;
-    }
-    .project-container
-    {
-	width:100%;
-	height:100%;
-	position:relative;
-	display:flex;
-    }
-    .project-hoverbox
-    {
-	position: absolute;
-	opacity: 0%;
-	width: 100%;
-	height: 100%;
-    }
 }
+.project-block
+{
+    margin: auto;
+    padding: 1em;
+    width: 80%;
+    aspect-ratio: 1/1;
+    border-color: rgb(234 234 234);
+    border-style: solid;
+    border-width: 0.1em;
+}
+
+.project-title
+{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: white;
+    opacity: 0%;
+    transition: 0.3s;
+}
+
+.project-video
+{
+    max-width: 100%;
+}
+.project-img
+{
+    max-width: 100%;
+    object-fit: contain;
+}
+.project-background
+{
+    position: absolute;
+    opacity: 0%;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+}
+.project-container
+{
+    width:100%;
+    height:100%;
+    position:relative;
+    display:flex;
+}
+.project-hoverbox
+{
+    position: absolute;
+    opacity: 0%;
+    width: 100%;
+    height: 100%;
+}
+
 
 #experience-section
 {
@@ -177,29 +155,32 @@ footer
 @media only screen and (max-width: 600px) {
 body
 {
-	width: 100%;
+	max-width: 100%;
 	margin: auto;
 	font-size:1em;
 }    
 
 /* PROJECTS ----------------*/
+/*.project-container
+{
+    max-width:100%;
+}*/
 #project-section
 {
+    max-width: 100%;
     grid-template-columns: 1fr;
     margin:auto;
-    .project-block
-    {
-	padding: 0;
-	width: 100%;
-    }
-    .img-overlay::before
-    {
-	height:0;
-	width:0;
-    }
-
 
 }
+
+#home-header
+{
+    #name-header
+    {
+	font-size: 4em;
+    }
+}
+
 .hello-section
 {
     width: 100%;

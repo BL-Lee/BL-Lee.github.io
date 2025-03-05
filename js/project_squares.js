@@ -91,6 +91,7 @@ function loadSquares()
     let imgs = overlays.selectAll("img")
 	.attr("src", d => d.imgSrc)
 	.attr("class", "project-img")
+//	.style("max-width", "100%")
 
 
     
@@ -108,16 +109,30 @@ function loadSquares()
     	.attr("href", "#")
 	.attr("class", "project-hoverbox")
 	.on("mouseover", function() {
-	    d3.select(this.parentNode).selectAll(".project-background")
+	    d3.select(this.parentNode).select(".project-background")
 		.transition().duration(200).style("opacity", 0.5);
-	    d3.select(this.parentNode).selectAll(".project-title")
+	    d3.select(this.parentNode).select(".project-title")
+		.transition().duration(100).style("opacity", 1.0)
+
+	})
+    	.on("touchstart", function() {
+	    d3.select(this.parentNode).select(".project-background")
+		.transition().duration(200).style("opacity", 0.5);
+	    d3.select(this.parentNode).select(".project-title")
 		.transition().duration(100).style("opacity", 1.0)
 
 	})
     	.on("mouseout", function() {
-	    d3.select(this.parentNode).selectAll(".project-background")
+	    d3.select(this.parentNode).select(".project-background")
 		.transition().duration(200).style("opacity", 0)
-	    d3.select(this.parentNode).selectAll(".project-title")
+	    d3.select(this.parentNode).select(".project-title")
+		.transition().duration(100).style("opacity", 0)
+
+	})
+    	.on("touchend", function() {
+	    d3.select(this.parentNode).select(".project-background")
+		.transition().duration(200).style("opacity", 0)
+	    d3.select(this.parentNode).select(".project-title")
 		.transition().duration(100).style("opacity", 0)
 
 	})
