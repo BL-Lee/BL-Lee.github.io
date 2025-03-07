@@ -1,9 +1,26 @@
 
-var textureSize = '256';
+var angleValue = 50.0;
+var anglePrintout = d3.select("#sensor-angle-print");
+// Listen to the slider?
+d3.select("#sensor-angle").on("change", function(d){
+    anglePrintout.html(this.value + "&deg;");
+    angleValue = this.value;
+})
+var agentSpeed = 1.0;
+var speedPrintout = d3.select("#agent-speed-print");
+// Listen to the slider?
+d3.select("#agent-speed").on("change", function(d){
+    speedPrintout.html(this.value);
+    agentSpeed = this.value;
+})
+var interval = null;
+
+var textureSize = '512';
 var slimeSensorProgram = `struct timeUniform {
         time: f32,
         dt: f32,
-        buffer: f32
+        sensorAngle: f32,
+        agentSpeed: f32
     };
 fn sampleLinear(uv : vec2f) -> vec4f {
 
@@ -81,7 +98,7 @@ fn wrap(uv : vec2f) -> vec2f {
     let PI = 3.14159265358979323;
     //Sensor
     let angle = agents[i].x;// * 2.0 * PI;
-    let sensorAngle = 40.0 / 180.0 * PI;
+    let sensorAngle = uTime.sensorAngle;
     let sensorDist = 2.0 / ${textureSize};
     let uvFront = vec2f(sin(angle), cos(angle)) * sensorDist + uv;
     let uvFrontLeft = vec2f(sin(angle - sensorAngle), cos(angle - sensorAngle)) * sensorDist + uv;
@@ -113,9 +130,9 @@ fn wrap(uv : vec2f) -> vec2f {
 
     let nextAngle = (newRotation + angle) % (2.0 * PI);// / (2.0 * PI);
     let dir = vec2f(sin(nextAngle), cos(nextAngle));
-    let slimeSpeed = 1.0;
 
-    let newPos = wrap(agents[i].yz + dir * slimeSpeed / ${ textureSize} );
+
+    let newPos = wrap(agents[i].yz + dir * uTime.agentSpeed / ${ textureSize} );
     
     agents[i] = vec4f(nextAngle, newPos, 0.0);
 }
@@ -124,7 +141,8 @@ var slimeDiffuseProgram = `
 struct timeUniform {
         time: f32,
         dt: f32,
-        buffer: f32
+        sensorRadius: f32,
+        agentSpeed : f32
     };
 fn wrapTexel(texel : vec2i) -> vec2u {
    var newTexel = vec2i(texel);
@@ -287,7 +305,7 @@ function initPointPipeline(device, presentationFormat)
 
 function initBuffers(device)
 {
-    const uniformBufferSize = 12;
+    const uniformBufferSize = 16;
     const uniformBuffer = device.createBuffer({
 	size: uniformBufferSize,
 	usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -318,7 +336,10 @@ function endRenderPass(device, encoder)
 
 function render(info)
 {
-    info.timeValues.set([info.timeValues[0] + 0.002, 0.0042, 1.0], 0);
+    //40.0 / 180.0 * PI;
+
+    let angle = angleValue / 180.0 * 3.14159;
+    info.timeValues.set([info.timeValues[0] + 0.002, 0.0042, angle, agentSpeed], 0);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.timeValues);
     const canvasTexture = info.context.getCurrentTexture();
     //Draw
@@ -396,7 +417,7 @@ async function setup()
     
     const canvasTexture = context.getCurrentTexture();
     
-    var timeValues = new Float32Array(3);
+    var timeValues = new Float32Array(4);
     var {uniformBuffer} = initBuffers(device);
     var agent_count = 10000;
     var agents = new Float32Array(4 * agent_count);
@@ -456,22 +477,44 @@ async function setup()
 		      agents, agentBuffer, timeValues,
 		      uniformBuffer};
 
-    const interval = setInterval(function() {
+    interval = setInterval(function() {
 	//Swap read/write buffers
 	render(globalInfo);
 
-    }, 32);
+    }, 16);
     //render(globalInfo);
 
     return globalInfo;
 }
 
+
 setup().then((globalInfo) =>
     {
-addEventListener("keypress", function(event) {
-	render(globalInfo);
-});
-	
+	addEventListener("keypress", function(event) {
+	    render(globalInfo);
+	});
+	d3.select("#fps-input").on("change", function(d){
+	    let fps = d3.select('input[name="fps"]:checked').node().value;
+
+	    if (fps == 30)
+	    {
+		clearInterval(interval);
+		interval = setInterval(function() {
+		    //Swap read/write buffers
+		    render(globalInfo);
+
+		}, 32);
+	    }
+	    if (fps == 60)
+	    {
+		clearInterval(interval);
+		interval = setInterval(function() {
+		    //Swap read/write buffers
+		    render(globalInfo);
+
+		}, 16);
+	    }
+	})
     });
 
 

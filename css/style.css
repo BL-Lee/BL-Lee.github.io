@@ -40,7 +40,7 @@ body
 
     #name-plate
     {
-	padding-top: 10%;
+	padding-top: 1em;
 	grid-column: 1/2;
     }
     #name-descriptor
@@ -50,7 +50,6 @@ body
 
 }
 /* NAV --------------------*/
-
 #main-nav
 {
 	padding: 1em;
@@ -61,10 +60,12 @@ body
 	width:90%;
 	position: sticky;
 	top: 0;
-	background-color: rgb(156 202 239);
+	z-index: 2;
+	background-color: rgb(230 244 255);
 	a {
 	    color:black;  
 	}
+	border-radius: 0.5em;
 }
 
 /* ABOUT -------------------*/
@@ -97,6 +98,7 @@ a:hover
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 0.5em;
+    padding-bottom: 1em;
 }
 .project-block
 {
@@ -163,7 +165,15 @@ footer
 {
     margin: auto;
     text-align: center;
-    padding-bottom: 2em;
+    padding-bottom: 1em;
+    padding-top: 1em;
+    background-color: rgb(230 244 255);
+    a {
+	color:black;  
+    }
+    border-top-left-radius: 0.5em;
+    border-top-right-radius: 0.5em;
+	
 }
 
 @media only screen and (max-width: 600px) {

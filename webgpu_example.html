@@ -3,12 +3,92 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>WebGPU Life</title>
+    <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type = "text/css" href="css/style.css">
+    <link rel="stylesheet" type = "text/css" href="css/slime-style.css">
+    <script src="js/d3.v7.js"></script>
+    <title>Slime Mold</title>
   </head>
   <body>
-    <canvas width="256" height="256" style="background-color:pink;
-					     image-rendering: pixelated;
-					    "></canvas>
+    <nav id = "unsticky-nav">
+      <a href="index.html">Home</a>
+      <a href="https://github.com/BL-Lee/BL-Lee.github.io/blob/main/js/fluid/slime.js">Source</a>
+      <a href="sideprojects.html">Other Projects</a>
+
+    </nav>
+    <main>
+      <canvas width="512" height="512" style="background-color:pink;
+					      image-rendering: pixelated;
+					      "></canvas>
+
+      <div id="side-bar">
+	<div id="controls">
+	  
+	  <div class="slider">
+	    <p>Sensor Angle</p>
+	    <input type="range" id="sensor-angle" min="1" max="180" value="50">
+	    <p id="sensor-angle-print">40&deg;</p>
+	  </div>
+
+	  <div class="slider">
+	    <p>Agent Speed</p>
+	    <input type="range" id="agent-speed" min="0.0" max="2.0" value="1.0" step="0.1">
+	    <p id="agent-speed-print">1.0</p>
+	  </div>
+
+	  <div class="fps">
+	    <p>FPS</p>
+
+	      <form id="fps-input">
+	      <input type="radio", name="fps" value="30" checked>
+	      <label for="fps">30</label><br>
+	      <input type="radio", name="fps" value="60">
+	      <label for="fps">60</label><br>
+	      </form>
+
+	  </div>
+
+	</div>
+	<p id="blurb">
+	  This project started out mostly because I came across some slime mold simulations online and I thought they were interesting to look at. I was also looking for a project to try out WebGPU on, and this seemed like the perfect fit.
+	  <br>
+	  <br>
+	  It's mostly based on <a href="https://kaesve.nl/projects/mold/summary.html">Ken Soeradi Voskuil's WebGL implementation</a>, which itself was based on <a href="https://cargocollective.com/sagejenson/physarum">Sage Jenson's physarum project</a>.
+
+	  <br>
+	  <br>
+
+	  The simulation has a set of "agents" and a "trail" texture with three steps that create this behaviour. The first is a sensor step, where each agent (or slime particle) looks in front, to the right and to the left on the trail texture. Then it just turns towards the area with the largest value and moves forward.
+
+	  <br>
+	  <br>
+
+	  Next is the deposit step. Essentially each agent adds a small value to the trail texture where it currently is. This is what causes the patterns to evolve, since agents tend to take paths that have already been taken before.
+
+	  <br>
+	  <br>
+
+	  Finally there is the diffuse step. This is a small blur added to the trail map, and a scaling factor that causes the trail to decay over time. I actually skipped the blur in my implementation because on this canvas size of 512x512 pixels I found it didn't add much.
+	  
+	  <br>
+	  <br>
+	  
+	  I've added a couple controls above. One is the <b>sensor angle</b>, which takes effect during the sensor step. Basically how far to the right and left the agents look before taking a step forward. The amount they step forward is based on the <b>agent speed</b> control.
+
+	  <br>
+	  <br>
+	  
+	  I've left out some details from the implementation, like needing two textures that I ping pong so that everything can parallelize well. Or how I do the deposit step by drawing each agent as a point (based on <a href="https://kaesve.nl/projects/mold/summary.html">Ken Soeradi Voskuil's WebGL implementation</a>), and binding the agent buffer as both a storage buffer, and a vertex buffer. It's all in a single JavaScript file, so if you'd like to dig into the code feel free to look at the (somewhat messy) <a href="https://github.com/BL-Lee/BL-Lee.github.io/blob/main/js/fluid/slime.js">source code!</a>
+	  
+
+	  
+	  
+	  
+	  
+
+	  </p>
+      </div>
+    </main>
     <script type="text/javascript" src="js/fluid/slime.js"> </script>
   </body>
 </html>

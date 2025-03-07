@@ -106,7 +106,7 @@ function loadSquares()
 	.text(d => d.title);
 
     overlays.append("a")
-    	.attr("href", "#")
+    	.attr("href", (d) => d.link)
 	.attr("class", "project-hoverbox")
 	.on("mouseover", function() {
 	    d3.select(this.parentNode).select(".project-background")
