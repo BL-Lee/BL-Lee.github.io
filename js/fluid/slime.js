@@ -222,14 +222,12 @@ async function initWebGPU()
     // Your WebGPU code will begin here!
     console.log(navigator);
     if (!navigator.gpu) {
-	throw new Error("WebGPU not supported on this browser.");
 	return {adapter : null, device : null,
 		context : null, presentationFormat : null,
 		succeed : false};
     }
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) {
-	throw new Error("No appropriate GPUAdapter found.");
 	return {adapter : null, device : null,
 		context : null, presentationFormat : null,
 		succeed : false};
