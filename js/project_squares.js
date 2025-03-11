@@ -39,7 +39,7 @@ var projectData = [
     {
 	title : "Vulkan Game Engine",
 	imgSrc: "img/ray.bmp",
-	link: "#"
+	link: "https://github.com/BL-Lee/V2Engine"
     },
     {
 	title : "Nokia Game Jam Submission",
@@ -54,21 +54,18 @@ var projectData = [
     {
 	title : "SIMD Ray Tracer",
 	imgSrc: "img/ray.bmp",
-	link: "#"
+	link: "https://github.com/BL-Lee/Ray"
     },
     {
 	title : "Low Effort Game Jam Submission",
 	imgSrc: "img/fishJam.jpg",
-	link: "#"
+	link: "https://limemonkeys.itch.io/curse-of-the-low-effort-lake"
     },
     {
 	title : "Boid Island",
-	imgSrc: "vis/IslandFinal.mp4",
-	link: "#"
+	imgSrc: "img/island.gif",
+	link: "https://github.com/BL-Lee/IslandSim"
     }
-    
-    
-
 ];
 
 
@@ -86,6 +83,7 @@ function loadSquares()
         .attr("class", "project-block")
 	.append("div")
 	.attr("class", "project-container");
+
     
     overlays.append("img")
     let imgs = overlays.selectAll("img")

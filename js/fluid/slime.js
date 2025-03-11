@@ -1,12 +1,12 @@
 
-var angleValue = 50.0;
+var angleValue = 40.0;
 var anglePrintout = d3.select("#sensor-angle-print");
 // Listen to the slider?
 d3.select("#sensor-angle").on("change", function(d){
     anglePrintout.html(this.value + "&deg;");
     angleValue = this.value;
 })
-var agentSpeed = 1.0;
+var agentSpeed = 0.8;
 var speedPrintout = d3.select("#agent-speed-print");
 // Listen to the slider?
 d3.select("#agent-speed").on("change", function(d){
@@ -184,7 +184,7 @@ fn wrapTexel(texel : vec2i) -> vec2u {
      
      textureStore(trail_write, id.xy, outColour);
 
-     if (outColour.b < 0.8)
+     if (outColour.b < 0.7)
      {
         outColour.b = 0.0;
      }
@@ -223,10 +223,16 @@ async function initWebGPU()
     console.log(navigator);
     if (!navigator.gpu) {
 	throw new Error("WebGPU not supported on this browser.");
+	return {adapter : null, device : null,
+		context : null, presentationFormat : null,
+		succeed : false};
     }
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) {
 	throw new Error("No appropriate GPUAdapter found.");
+	return {adapter : null, device : null,
+		context : null, presentationFormat : null,
+		succeed : false};
     }
     // bgra8unorm as a storage texture is an optional feature so
   // if it's supported then we don't care if presentationFormat is
@@ -236,18 +242,24 @@ async function initWebGPU()
 	? navigator.gpu.getPreferredCanvasFormat()
 	: 'rgba8unorm';
 
-    const device = await adapter?.requestDevice({
+    var device = await adapter?.requestDevice({
 	requiredFeatures: presentationFormat === 'bgra8unorm'
             ? ['bgra8unorm-storage']
             : [],
     });
+    if (!device)
+    {
+	return {adapter : null, device : null,
+		context : null, presentationFormat : null,
+		succeed : false};
+    }
     const context = canvas.getContext("webgpu");
     context.configure({
 	device: device,
 	format: presentationFormat,
 	usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING
     });
-    return {adapter, device, context, presentationFormat};
+    return {adapter, device, context, presentationFormat, succeed : true};
 }
 
 function initPipeline(device, presentationFormat, program)
@@ -411,7 +423,12 @@ function render(info)
 
 async function setup()
 {
-    var {adapter, device, context, presentationFormat} = await initWebGPU();
+    var {adapter, device, context, presentationFormat, succeed} = await initWebGPU();
+    if (!succeed)
+    {
+	d3.select("#notAvailable").text("Oops! Looks like WebGPU isn't available on your browser/device. A pre-recorded video will play instead.").style("padding-top", "1em");
+	return;
+    }
     var {module, pipeline} = initPipeline(device, presentationFormat, slimeSensorProgram);
 
     
@@ -490,31 +507,31 @@ async function setup()
 
 setup().then((globalInfo) =>
     {
-	addEventListener("keypress", function(event) {
-	    render(globalInfo);
-	});
-	d3.select("#fps-input").on("change", function(d){
-	    let fps = d3.select('input[name="fps"]:checked').node().value;
+	if (globalInfo)
+	{
+	    d3.select("#fps-input").on("change", function(d){
+		let fps = d3.select('input[name="fps"]:checked').node().value;
 
-	    if (fps == 30)
-	    {
-		clearInterval(interval);
-		interval = setInterval(function() {
-		    //Swap read/write buffers
-		    render(globalInfo);
+		if (fps == 30)
+		{
+		    clearInterval(interval);
+		    interval = setInterval(function() {
+			//Swap read/write buffers
+			render(globalInfo);
 
-		}, 32);
-	    }
-	    if (fps == 60)
-	    {
-		clearInterval(interval);
-		interval = setInterval(function() {
-		    //Swap read/write buffers
-		    render(globalInfo);
+		    }, 32);
+		}
+		if (fps == 60)
+		{
+		    clearInterval(interval);
+		    interval = setInterval(function() {
+			//Swap read/write buffers
+			render(globalInfo);
 
-		}, 16);
-	    }
-	})
+		    }, 16);
+		}
+	    })
+	}
     });
 
 
