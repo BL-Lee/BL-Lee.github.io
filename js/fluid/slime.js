@@ -26,15 +26,6 @@ fn sampleLinear(uv : vec2f) -> vec4f {
 
     let texel = vec2u(wrap(uv) * ${textureSize});
     return textureLoad(trail, wrapTexel(texel));
-    let BL = textureLoad(trail, wrapTexel(texel));
-    let BR = textureLoad(trail, wrapTexel(texel + vec2u(1,0)));
-    let TL = textureLoad(trail, wrapTexel(texel + vec2u(0,1)));
-    let TR = textureLoad(trail, wrapTexel(texel + vec2u(1,1)));
-
-
-    let mixVal = fract(uv * ${textureSize});
-
-    return mix(mix(BL, BR, mixVal.x), mix(TL, TR, mixVal.x), mixVal.y);
 
 }
 fn wrapTexel(texel : vec2u) -> vec2u {
@@ -71,11 +62,11 @@ fn wrap(uv : vec2f) -> vec2f {
      {
          newUv.y = 1.0 - uv.y;
      }
-   if (uv.x > 1.0)
+   if (uv.x >= 1.0)
      {
          newUv.x = uv.x - 1.0;
      }
-   if (uv.y > 1.0)
+   if (uv.y >= 1.0)
      {
          newUv.y = uv.y - 1.0;
      }
@@ -221,7 +212,7 @@ async function initWebGPU()
     const canvas = document.querySelector("canvas");
     // Your WebGPU code will begin here!
     console.log(navigator);
-    if (!navigator.gpu) {
+    if (!navigator.gpu || !navigator) {
 	return {adapter : null, device : null,
 		context : null, presentationFormat : null,
 		succeed : false};
@@ -425,7 +416,7 @@ async function setup()
     if (!succeed)
     {
 	d3.select("#notAvailable").text("Oops! Looks like WebGPU isn't available on your browser/device. A pre-recorded video will play instead.").style("padding-top", "1em");
-	return;
+	return null;
     }
     var {module, pipeline} = initPipeline(device, presentationFormat, slimeSensorProgram);
 

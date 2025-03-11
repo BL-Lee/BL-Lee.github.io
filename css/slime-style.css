@@ -71,7 +71,7 @@ canvas
     }
     form
     {
-        display:inline-flex;
+        display:flex;
 	width: 100%;
 	justify-content: space-between;
 	p
@@ -122,8 +122,8 @@ canvas
 {
     display:inline-flex;
     padding-top:1em;
-    width: 100%;
-    height: 2em;
+    width: 90%;
+/*    height: 2em;*/
     justify-content: space-between;
     p
     {
@@ -134,22 +134,27 @@ canvas
 }
 .fps
 {
+
     text-align:center;
     height:3em;
+    width:100%;
+    display:flex;
+    justify-content:space-around;
     p
     {
 	margin:auto;
-	padding-top:0.5em;
+	width:50%;
+/*	padding-top:0.5em;*/
     }
     form
     {
-        display:inline-flex;
+
 	width: 100%;
-	justify-content: space-between;
+	display:block;
 	p
 	{
 	    margin:auto;
-	    padding-left: 0.5em;
+/*	    padding-left: 0.5em;*/
 	}
     }
 }
@@ -160,7 +165,7 @@ canvas
 }
 #side-bar
 {
-    width: 100%;
+    width: 90%;
     height: 100%;
     padding: 1em;
     display: flex;
