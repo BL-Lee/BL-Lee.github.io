@@ -12,7 +12,7 @@ function loadSideImages(imgData)
 	return imgData[i];
     }).enter().append("img")
 	.attr("src", (d) => "../" + d.imgSrc)
-	.attr("style", "max-width: 100px");
+	.attr("style", "width: 100%; ");
     
 }
 
