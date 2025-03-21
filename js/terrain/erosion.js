@@ -37,11 +37,76 @@
 
  */
 import {mat4} from 'https://webgpufundamentals.org/3rdparty/wgpu-matrix.module.js';
-import 'http://joeiddon.github.io/perlin/perlin.js';
+//import 'http://joeiddon.github.io/perlin/perlin.js';
 
 var textureSize = '128';
 var interval = null;
-var drawShader = `struct Vertex {
+const particleUpdateShader = `struct timeUniform {
+        time: f32,
+        dt: f32,
+        sensorAngle: f32,
+        agentSpeed: f32,
+        cameraMat: mat4x4f
+    };
+struct Particle {
+ pos: vec2f,
+ vel: vec2f,
+ volume: f32,
+ sediment: f32,
+};
+
+//@group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
+@group(0) @binding(1) var<uniform> uTime: timeUniform;
+@group(0) @binding(2) var heightMap: texture_storage_2d<bgra8unorm, read>;
+
+@compute @workgroup_size(1) fn computeSomething(
+    @builtin(global_invocation_id) id: vec3u
+) {
+
+    let i = id.x;
+    updated = Particle();
+
+
+    agents[i] = updated;
+}
+`;
+
+const particlePointShader = `struct Vertex {
+ @location(0) pos: vec2f,
+ @location(1) vel: vec2f,
+ @location(2) volume: f32,
+ @location(3) sediment: f32,
+};
+
+struct VSOutput {
+  @builtin(position) position: vec4f,
+  @location(0) color: vec4f,
+
+};
+struct timeUniform {
+        time: f32,
+        dt: f32,
+        sensorAngle: f32,
+        agentSpeed: f32,
+        cameraMat: mat4x4f,
+    };
+
+@group(0) @binding(0) var<uniform> uTime: timeUniform;
+
+@vertex fn vs(vert: Vertex,) -> VSOutput {
+  var vsOut: VSOutput;
+
+  vsOut.position = vec4f(vert.pos.x, vert.pos.y, 0.0, 1.0);
+  vsOut.color = vec4f(0.1,0.0,0.0,0.0);
+  return vsOut;
+}
+ 
+@fragment fn fs(vsOut: VSOutput) ->  @location(0)  vec4f {
+   return vsOut.color;
+}
+`
+
+const drawShader = `struct Vertex {
   @location(0) position: vec2f,
 };
 
@@ -172,6 +237,58 @@ function initDrawPipeline(device, presentationFormat)
     });
     return pipeline;
 }
+function initDepositPipeline(device, presentationFormat)
+{
+    const module = device.createShaderModule({
+	label: 'doubling compute module',
+	//RG -> horizontal output, vertical output respectively
+	//Each pixel stores bottom and left values
+	code: particlePointShader,
+    });
+
+    const pipeline = device.createRenderPipeline({
+	label: 'heightmap deposit',
+	layout: 'auto',
+	vertex: {
+	    module,
+	    buffers: [
+		{
+		    arrayStride: 4 * 6, 
+		    attributes: [
+			{shaderLocation: 0, offset: 0, format: 'float32x2'}, 
+			{shaderLocation: 1, offset: 8, format: 'float32x2'}, 
+			{shaderLocation: 2, offset: 16, format: 'float32'},  
+			{shaderLocation: 3, offset: 20, format: 'float32'},  
+		    ],
+		},
+	    ],
+	},
+	fragment: {
+	    module,
+	    targets: [
+		{
+		    format: "rgba8unorm",
+		    blend: {
+			color: {
+			    operation: 'subtract',
+			    srcFactor: 'one',
+			    dstFactor: 'one-minus-src-alpha',
+			},
+			alpha: {
+			    srcFactor: 'one',
+			    dstFactor: 'one-minus-src-alpha',
+			}
+		    }
+		},
+	    ],
+	    
+	},
+	primitive: {
+	    topology: 'point-list',
+	},
+    });
+    return pipeline;
+}
 
 function initBuffers(device)
 {
@@ -225,16 +342,17 @@ function render(info)
     info.uniformValues.set([info.uniformValues[0] + 0.02, 0.0042, angle, 1.0], 0);
     mat4.rotateX(viewProjection, 0, info.matrixValue);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
-    const bindGroup = info.device.createBindGroup({
-	label: 'bindGroup for draw',
-	layout: info.drawPipeline.getBindGroupLayout(0),
-	entries: [
-	    { binding: 0, resource: {buffer : info.uniformBuffer}},
-	    { binding: 1, resource:  info.heightMap.createView()},
-	],
-    });
 
     {
+	const bindGroup = info.device.createBindGroup({
+	    label: 'bindGroup for draw',
+	    layout: info.drawPipeline.getBindGroupLayout(0),
+	    entries: [
+		{ binding: 0, resource: {buffer : info.uniformBuffer}},
+		{ binding: 1, resource:  info.heightMap.createView()},
+	    ],
+	});
+
 	info.renderPassDescriptor.colorAttachments[0].view = canvasTexture.createView();
 	const encoder = info.device.createCommandEncoder();
 	const pass = encoder.beginRenderPass(info.renderPassDescriptor);
@@ -246,6 +364,30 @@ function render(info)
 	const commandBuffer = encoder.finish();
 	info.device.queue.submit([commandBuffer]);
     }
+
+    {
+	const bindGroup = info.device.createBindGroup({
+	    label: 'bindGroup for point',
+	    layout: info.pointPipeline.getBindGroupLayout(0),
+	    entries: [
+		{ binding: 0, resource: {buffer : info.uniformBuffer}},
+	    ],
+	});
+
+	info.pointRenderPassDescriptor.colorAttachments[0].view = info.heightMap.createView();
+	const encoder = info.device.createCommandEncoder();
+	const pass = encoder.beginRenderPass(info.pointRenderPassDescriptor);
+	pass.setPipeline(info.pointPipeline);
+	pass.setVertexBuffer(0, info.particleBuffer);
+	pass.setBindGroup(0, bindGroup);
+	pass.draw(200);
+	pass.end();
+	const commandBuffer = encoder.finish();
+	info.device.queue.submit([commandBuffer]);
+    }
+
+
+    
 }
 
 async function setup()
@@ -302,12 +444,42 @@ async function setup()
 	}
     }
 
+    
     const vertexBuffer = device.createBuffer({
 	label: 'vertex buffer',
 	size: vertices.byteLength,
 	usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX,
     });
     device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+
+    var particleCount = 200;
+    var particleSize = 6;
+    var particles = new Float32Array(particleCount * 6);
+    offset = 0;
+    for (let i = 0; i < particleCount; ++i) {
+	vertices[offset + 0] = rand(0,1);
+	vertices[offset + 1] = rand(0,1);
+	
+	vertices[offset + 2] = 0; //speed
+	vertices[offset + 3] = 0;
+	
+	vertices[offset + 4] = 1.0; //volume
+	vertices[offset + 5] = 0.0; //sediment
+	
+	offset += 6;
+    }
+
+    const particleBuffer = device.createBuffer({
+	label: 'particle buffer',
+	size: particles.byteLength,
+	usage: GPUBufferUsage.COPY_DST |
+	    GPUBufferUsage.VERTEX |
+	    GPUBufferUsage.STORAGE_BINDING
+    });
+    device.queue.writeBuffer(particleBuffer, 0, particles);
+
+
     
     const heightMap = device.createTexture({
 	label: "heightmap",
@@ -334,7 +506,7 @@ async function setup()
 	{ width: textureSize, height: textureSize },
     );
     var renderPassDescriptor = {
-	label: 'point renderpass',
+	label: 'draw renderpass',
 	colorAttachments: [
 	    {
 		// view: <- to be filled out when we render
@@ -344,14 +516,31 @@ async function setup()
 	    },
 	],
     };
+    var pointRenderPassDescriptor = {
+	label: 'point renderpass',
+	colorAttachments: [
+	    {
+		// view: <- to be filled out when we render
+		clearValue: [0.0, 0.0, 0.0, 1],
+		loadOp: 'load',
+		storeOp: 'store',
+	    },
+	],
+    };
+
     const drawPipeline = initDrawPipeline(device, presentationFormat);
+    const pointPipeline = initDepositPipeline(device, presentationFormat);
+    
     var globalInfo = {device, adapter,
 		      context, presentationFormat,
 		      renderPassDescriptor, 
 		      drawPipeline,
+		      pointPipeline,
 		      //		      positionBuffer,
 		      heightMap,
 		      matrixValue,
+		      particleBuffer,
+		      pointRenderPassDescriptor,
 		      vertices, vertexBuffer, uniformValues,
 		      uniformBuffer};
 
