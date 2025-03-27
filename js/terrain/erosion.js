@@ -41,6 +41,7 @@ import {mat4} from 'https://webgpufundamentals.org/3rdparty/wgpu-matrix.module.j
 
 var textureSize = '128';
 var interval = null;
+var PARTICLE_COUNT = 200;
 const particleUpdateShader = `struct timeUniform {
         time: f32,
         dt: f32,
@@ -48,6 +49,7 @@ const particleUpdateShader = `struct timeUniform {
         agentSpeed: f32,
         cameraMat: mat4x4f
     };
+
 struct Particle {
  pos: vec2f,
  vel: vec2f,
@@ -55,19 +57,50 @@ struct Particle {
  sediment: f32,
 };
 
-//@group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
+@group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(1) var<uniform> uTime: timeUniform;
-@group(0) @binding(2) var heightMap: texture_storage_2d<bgra8unorm, read>;
+@group(0) @binding(2) var heightMap: texture_storage_2d<rgba8unorm, read>;
+fn newRandomPos(uv : vec2f) -> vec2f {
+     return vec2f(fract(sin(dot(vec2f(uv.xy), vec2f(12.9898, 78.233))) * 43758.5453),
+                  fract(sin(dot(vec2f(uv.yx), vec2f(12.9898, 78.233))) * 43758.5453)) * 2.0 - 1.0;
+}
+
+fn calcGrad(coord: vec2u) -> vec2f {
+  let here = textureLoad(heightMap, coord);
+  let right = textureLoad(heightMap, coord + vec2u(1,0));
+  let down = textureLoad(heightMap, coord + vec2u(0,1));
+
+  return vec2f(here.r - right.r, here.r - down.r);
+}
 
 @compute @workgroup_size(1) fn computeSomething(
     @builtin(global_invocation_id) id: vec3u
 ) {
 
     let i = id.x;
-    updated = Particle();
+    var updated = particles[i];
+    let coord = vec2u((updated.pos * 0.5 + 0.5) * ${textureSize});
+    let grad = calcGrad(coord);
+    updated.vel += 4.0 * grad * uTime.dt;
+    updated.volume *= 0.99;
+    updated.pos += vec2f(updated.vel * uTime.dt * 1.0);
+    let c = updated.sediment / updated.volume; //concentration
+    let q = 0.2; //equilibrium
+    updated.sediment -= (q-c);
+    //updated.sediment += (updated.sediment - q) * uTime.dt;
+    if (updated.pos.x > 1.0 ||
+        updated.pos.x < -1.0 ||
+        updated.pos.y > 1.0 ||
+        updated.pos.y < -1.0 ||
+        updated.volume < 0.1)
+    {
+        updated.pos = newRandomPos(updated.pos);
+        updated.vel = vec2f(0.0,0.0);
+        updated.volume = 1.0;
+        updated.sediment = 0.0;
+    }
 
-
-    agents[i] = updated;
+    particles[i] = updated;
 }
 `;
 
@@ -93,11 +126,16 @@ struct timeUniform {
 
 @group(0) @binding(0) var<uniform> uTime: timeUniform;
 
-@vertex fn vs(vert: Vertex,) -> VSOutput {
+@vertex fn vs(vert: Vertex) -> VSOutput {
   var vsOut: VSOutput;
-
-  vsOut.position = vec4f(vert.pos.x, vert.pos.y, 0.0, 1.0);
-  vsOut.color = vec4f(0.1,0.0,0.0,0.0);
+  let position = vec4f(vert.pos.x, -vert.pos.y, 0.0, 1.0);
+  vsOut.position = position;//vec4f(vert.pos, 0.0, 1.0);
+  //vsOut.color = vec4f( uTime.dt * 2, vert.sediment,1.0,1.0);
+  let c = vert.sediment / vert.volume;
+  let q = 0.2; //equilibrium
+  let diff = (q - c);
+  
+  vsOut.color = vec4f( (-diff) * uTime.dt * 300000.0,-0.1,1.0,1.0);
   return vsOut;
 }
  
@@ -130,19 +168,23 @@ struct VSOutput {
 @vertex fn vs(vert: Vertex,) -> VSOutput {
   var vsOut: VSOutput;
 
-let coord = vec2u(vert.position * vec2f(${textureSize}, ${textureSize})); 
-let height = textureLoad(heightMap, coord).r;
+  
+let coord = vec2u(vert.position * vec2f(${textureSize}, ${textureSize}));
+let pixel = textureLoad(heightMap, coord);
+let height = pixel.r;
 let pos = vec4f(vert.position.x, vert.position.y,
-  height * 0.5, 1.0);
+  height * 0.2, 1.0);
 
   
   vsOut.position = uTime.cameraMat * pos;
 
-  let topColor = vec4f(0.6,0.9,0.6,1.0);
-  let bottomColor = vec4f(0.4,0.2,0.2,1.0);
+  /*let topColor = vec4f(0.6,0.9,0.6,1.0);
+  let bottomColor = vec4f(0.4,0.2,0.2,1.0);*/
+  let topColor = vec4f(1.0,pixel.g,1.0,1.0);
+  let bottomColor = vec4f(0.0,pixel.g,1.0,1.0);
 
 
-  vsOut.color = mix(bottomColor, topColor, height);
+  vsOut.color = mix(bottomColor, topColor, smoothstep(0,1,height));
   return vsOut;
 }
 
@@ -237,7 +279,25 @@ function initDrawPipeline(device, presentationFormat)
     });
     return pipeline;
 }
-function initDepositPipeline(device, presentationFormat)
+function initUpdatePipeline(device)
+{
+    const module = device.createShaderModule({
+	label: 'particle update shader',
+	//RG -> horizontal output, vertical output respectively
+	//Each pixel stores bottom and left values
+	code: particleUpdateShader,
+    });
+
+    const pipeline = device.createComputePipeline({
+	label: 'particleUpdate',
+	layout: 'auto',
+	compute: {module},
+    });
+    return pipeline;
+}
+
+
+function initPointPipelines(device, presentationFormat)
 {
     const module = device.createShaderModule({
 	label: 'doubling compute module',
@@ -245,8 +305,7 @@ function initDepositPipeline(device, presentationFormat)
 	//Each pixel stores bottom and left values
 	code: particlePointShader,
     });
-
-    const pipeline = device.createRenderPipeline({
+    let info = {
 	label: 'heightmap deposit',
 	layout: 'auto',
 	vertex: {
@@ -270,13 +329,13 @@ function initDepositPipeline(device, presentationFormat)
 		    format: "rgba8unorm",
 		    blend: {
 			color: {
-			    operation: 'subtract',
+			    operation: 'add',
 			    srcFactor: 'one',
-			    dstFactor: 'one-minus-src-alpha',
+			    dstFactor: 'one',
 			},
 			alpha: {
 			    srcFactor: 'one',
-			    dstFactor: 'one-minus-src-alpha',
+			    dstFactor: 'one',
 			}
 		    }
 		},
@@ -286,8 +345,12 @@ function initDepositPipeline(device, presentationFormat)
 	primitive: {
 	    topology: 'point-list',
 	},
-    });
-    return pipeline;
+    }
+    const depositPipeline = device.createRenderPipeline(info);
+    info.fragment.targets[0].blend.color.operation = 'subtract';
+    const subtractPipeline = device.createRenderPipeline(info);
+    
+    return {depositPipeline, subtractPipeline};
 }
 
 function initBuffers(device)
@@ -334,15 +397,22 @@ function render(info)
       [1.5, 1.5, 1],  // position
       [0.5, 0.5, 0],    // target
       [0, 0, 1],    // up
-    );
+      );
+    /*const view = mat4.lookAt(
+      [1.5, 1.5, 1],  // position
+      [0.0, 0.0, 0],    // target
+      [0, 0, 1],    // up
+    );*/
     const viewProjection = mat4.multiply(projection, view);
 
 
     let angle = 10 / 180.0 * 3.14159;
-    info.uniformValues.set([info.uniformValues[0] + 0.02, 0.0042, angle, 1.0], 0);
-    mat4.rotateX(viewProjection, 0, info.matrixValue);
+    info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, angle, 1.0], 0);
+    mat4.rotateZ(viewProjection, 0, info.matrixValue);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
 
+    
+    //Draw pass
     {
 	const bindGroup = info.device.createBindGroup({
 	    label: 'bindGroup for draw',
@@ -365,10 +435,12 @@ function render(info)
 	info.device.queue.submit([commandBuffer]);
     }
 
+    //Subtract pass
+/*
     {
-	const bindGroup = info.device.createBindGroup({
+	let bindPointGroup = info.device.createBindGroup({
 	    label: 'bindGroup for point',
-	    layout: info.pointPipeline.getBindGroupLayout(0),
+	    layout: info.subtractPipeline.getBindGroupLayout(0),
 	    entries: [
 		{ binding: 0, resource: {buffer : info.uniformBuffer}},
 	    ],
@@ -377,10 +449,52 @@ function render(info)
 	info.pointRenderPassDescriptor.colorAttachments[0].view = info.heightMap.createView();
 	const encoder = info.device.createCommandEncoder();
 	const pass = encoder.beginRenderPass(info.pointRenderPassDescriptor);
-	pass.setPipeline(info.pointPipeline);
+	pass.setPipeline(info.subtractPipeline);
 	pass.setVertexBuffer(0, info.particleBuffer);
-	pass.setBindGroup(0, bindGroup);
-	pass.draw(200);
+	pass.setBindGroup(0, bindPointGroup);
+	pass.draw(PARTICLE_COUNT);
+	pass.end();
+	const commandBuffer = encoder.finish();
+	info.device.queue.submit([commandBuffer]);
+    }
+    //Update pass
+*/
+    {
+	const bindGroup = info.device.createBindGroup({
+	    label: 'bindGroup for canvas',
+	    layout: info.updatePipeline.getBindGroupLayout(0),
+	    entries: [
+		{ binding: 0, resource:  {buffer :  info.particleBuffer}},
+		{ binding: 1, resource: {buffer : info.uniformBuffer}  },
+		{ binding: 2, resource: info.heightMap.createView()  },
+	    ],
+	});
+	let {renderPass, encoder} = beginRenderPass(info.device);
+	renderPass.setPipeline(info.updatePipeline);
+	renderPass.setBindGroup(0, bindGroup);
+	//renderPass.dispatchWorkgroups(canvasTexture.width * canvasTexture.height / 2);
+	renderPass.dispatchWorkgroups(PARTICLE_COUNT);
+	renderPass.end(info.device, encoder);
+	endRenderPass(info.device, encoder);
+    }
+    
+    //Deposit pass
+    {
+	let bindPointGroup = info.device.createBindGroup({
+	    label: 'bindGroup for point',
+	    layout: info.depositPipeline.getBindGroupLayout(0),
+	    entries: [
+		{ binding: 0, resource: {buffer : info.uniformBuffer}},
+	    ],
+	});
+
+	info.pointRenderPassDescriptor.colorAttachments[0].view = info.heightMap.createView();
+	const encoder = info.device.createCommandEncoder();
+	const pass = encoder.beginRenderPass(info.pointRenderPassDescriptor);
+	pass.setPipeline(info.depositPipeline);
+	pass.setVertexBuffer(0, info.particleBuffer);
+	pass.setBindGroup(0, bindPointGroup);
+	pass.draw(PARTICLE_COUNT);
 	pass.end();
 	const commandBuffer = encoder.finish();
 	info.device.queue.submit([commandBuffer]);
@@ -453,19 +567,21 @@ async function setup()
     device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
 
-    var particleCount = 200;
     var particleSize = 6;
-    var particles = new Float32Array(particleCount * 6);
+    var particles = new Float32Array(PARTICLE_COUNT * 6);
     offset = 0;
-    for (let i = 0; i < particleCount; ++i) {
-	vertices[offset + 0] = rand(0,1);
-	vertices[offset + 1] = rand(0,1);
+    for (let i = 0; i < PARTICLE_COUNT; ++i) {
+	particles[offset + 0] = rand(-1,1);
+	  particles[offset + 1] = rand(-1,1);
 	
-	vertices[offset + 2] = 0; //speed
-	vertices[offset + 3] = 0;
+	/*particles[offset + 0] = 0.7;
+	particles[offset + 1] = -0.7;*/
 	
-	vertices[offset + 4] = 1.0; //volume
-	vertices[offset + 5] = 0.0; //sediment
+	particles[offset + 2] = 0.0; //speed
+	particles[offset + 3] = 0.0;
+	
+	particles[offset + 4] = 1.0; //volume
+	particles[offset + 5] = 0.0; //sediment
 	
 	offset += 6;
     }
@@ -475,10 +591,11 @@ async function setup()
 	size: particles.byteLength,
 	usage: GPUBufferUsage.COPY_DST |
 	    GPUBufferUsage.VERTEX |
-	    GPUBufferUsage.STORAGE_BINDING
+	    GPUBufferUsage.STORAGE
     });
     device.queue.writeBuffer(particleBuffer, 0, particles);
 
+    const updatePipeline = initUpdatePipeline(device);
 
     
     const heightMap = device.createTexture({
@@ -488,14 +605,18 @@ async function setup()
 	usage: GPUTextureUsage.COPY_DST |
 	    GPUTextureUsage.STORAGE_BINDING |
             GPUTextureUsage.RENDER_ATTACHMENT,
+	//alphaMode: 'premultiplied',
     });
 
     const textureData = new Uint8Array(Array.from({length: textureSize * textureSize * 4},
 				   function(v,i) {
-				       return Math.max(0,Math.min(1,(perlin.get(i / 4 / textureSize / 20.0,
-										i / 4 % textureSize / 20.0) * 0.5 + 0.5))) * 255
-							   })
-				      );
+				       return Math.max(0,Math.min(1,(perlin.get(i / 4 / textureSize / 30.0,
+					 i / 4 % textureSize / 30.0) * 0.5 + 0.5))) * 255})
+				       /*let x = i / 4 / textureSize / textureSize;
+				       let y = (i / 4) % (textureSize) / textureSize;
+				       return Math.max(0,
+ 				       Math.min(1, y * 0.5 + x * 0.5)) * 255})*/
+						 );
 
     console.log(textureData);
     
@@ -529,13 +650,14 @@ async function setup()
     };
 
     const drawPipeline = initDrawPipeline(device, presentationFormat);
-    const pointPipeline = initDepositPipeline(device, presentationFormat);
+    const {depositPipeline, subtractPipeline} = initPointPipelines(device, presentationFormat);
     
     var globalInfo = {device, adapter,
 		      context, presentationFormat,
 		      renderPassDescriptor, 
 		      drawPipeline,
-		      pointPipeline,
+		      depositPipeline, subtractPipeline,
+		      updatePipeline,
 		      //		      positionBuffer,
 		      heightMap,
 		      matrixValue,
@@ -548,7 +670,7 @@ async function setup()
 	//Swap read/write buffers
 	render(globalInfo);
 
-    }, 32);
+    }, 16);
     //render(globalInfo);
 
     return globalInfo;
