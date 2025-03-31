@@ -41,7 +41,7 @@ import {mat4} from 'https://webgpufundamentals.org/3rdparty/wgpu-matrix.module.j
 
 var textureSize = '128';
 var interval = null;
-var PARTICLE_COUNT = 200;
+var PARTICLE_COUNT = 2000;
 const particleUpdateShader = `struct timeUniform {
         time: f32,
         dt: f32,
@@ -85,14 +85,14 @@ fn calcGrad(coord: vec2u) -> vec2f {
     updated.volume *= 0.99;
     updated.pos += vec2f(updated.vel * uTime.dt * 1.0);
     let c = updated.sediment / updated.volume; //concentration
-    let q = 0.2; //equilibrium
-    updated.sediment -= (q-c);
+    let q = 0.5; //equilibrium
+    updated.sediment += (q-c)* 0.5;
     //updated.sediment += (updated.sediment - q) * uTime.dt;
     if (updated.pos.x > 1.0 ||
         updated.pos.x < -1.0 ||
         updated.pos.y > 1.0 ||
         updated.pos.y < -1.0 ||
-        updated.volume < 0.1)
+        updated.volume < 0.01)
     {
         updated.pos = newRandomPos(updated.pos);
         updated.vel = vec2f(0.0,0.0);
@@ -120,7 +120,7 @@ struct timeUniform {
         time: f32,
         dt: f32,
         sensorAngle: f32,
-        agentSpeed: f32,
+        subtractMode: f32,
         cameraMat: mat4x4f,
     };
 
@@ -132,15 +132,30 @@ struct timeUniform {
   vsOut.position = position;//vec4f(vert.pos, 0.0, 1.0);
   //vsOut.color = vec4f( uTime.dt * 2, vert.sediment,1.0,1.0);
   let c = vert.sediment / vert.volume;
-  let q = 0.2; //equilibrium
-  let diff = (q - c);
+  let q = 0.5; //equilibrium
+  let diff = (q - c) * 0.5;
   
-  vsOut.color = vec4f( (-diff) * uTime.dt * 300000.0,-0.1,1.0,1.0);
+
+
+  if ((uTime.subtractMode == 1.0 && diff < 0.0) ||
+      (uTime.subtractMode == 0.0 && diff > 0.0)
+     )
+   {
+      vsOut.color = vec4f( (diff),1.0,1.0,1.0);
+   }
+  else if ((uTime.subtractMode == 1.0 && diff > 0.0) ||
+           (uTime.subtractMode == 0.0 && diff < 0.0))
+   {
+     vsOut.color = vec4f(0.0,1.0,1.0,1.0);
+   }
+
   return vsOut;
 }
- 
+
+
 @fragment fn fs(vsOut: VSOutput) ->  @location(0)  vec4f {
-   return vsOut.color;
+  //Subtract mode and valid
+  return vsOut.color;
 }
 `
 
@@ -173,15 +188,15 @@ let coord = vec2u(vert.position * vec2f(${textureSize}, ${textureSize}));
 let pixel = textureLoad(heightMap, coord);
 let height = pixel.r;
 let pos = vec4f(vert.position.x, vert.position.y,
-  height * 0.2, 1.0);
+  height * 0.4, 1.0);
 
   
   vsOut.position = uTime.cameraMat * pos;
 
   /*let topColor = vec4f(0.6,0.9,0.6,1.0);
   let bottomColor = vec4f(0.4,0.2,0.2,1.0);*/
-  let topColor = vec4f(1.0,pixel.g,1.0,1.0);
-  let bottomColor = vec4f(0.0,pixel.g,1.0,1.0);
+  let topColor = vec4f(1.0,1.0,1.0,1.0);
+  let bottomColor = vec4f(0.0,0.0,1.0,1.0);
 
 
   vsOut.color = mix(bottomColor, topColor, smoothstep(0,1,height));
@@ -347,7 +362,7 @@ function initPointPipelines(device, presentationFormat)
 	},
     }
     const depositPipeline = device.createRenderPipeline(info);
-    info.fragment.targets[0].blend.color.operation = 'subtract';
+    info.fragment.targets[0].blend.color.operation = 'reverse-subtract';
     const subtractPipeline = device.createRenderPipeline(info);
     
     return {depositPipeline, subtractPipeline};
@@ -405,9 +420,7 @@ function render(info)
     );*/
     const viewProjection = mat4.multiply(projection, view);
 
-
-    let angle = 10 / 180.0 * 3.14159;
-    info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, angle, 1.0], 0);
+    info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, 0.0, 0.0], 0);
     mat4.rotateZ(viewProjection, 0, info.matrixValue);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
 
@@ -435,30 +448,6 @@ function render(info)
 	info.device.queue.submit([commandBuffer]);
     }
 
-    //Subtract pass
-/*
-    {
-	let bindPointGroup = info.device.createBindGroup({
-	    label: 'bindGroup for point',
-	    layout: info.subtractPipeline.getBindGroupLayout(0),
-	    entries: [
-		{ binding: 0, resource: {buffer : info.uniformBuffer}},
-	    ],
-	});
-
-	info.pointRenderPassDescriptor.colorAttachments[0].view = info.heightMap.createView();
-	const encoder = info.device.createCommandEncoder();
-	const pass = encoder.beginRenderPass(info.pointRenderPassDescriptor);
-	pass.setPipeline(info.subtractPipeline);
-	pass.setVertexBuffer(0, info.particleBuffer);
-	pass.setBindGroup(0, bindPointGroup);
-	pass.draw(PARTICLE_COUNT);
-	pass.end();
-	const commandBuffer = encoder.finish();
-	info.device.queue.submit([commandBuffer]);
-    }
-    //Update pass
-*/
     {
 	const bindGroup = info.device.createBindGroup({
 	    label: 'bindGroup for canvas',
@@ -480,6 +469,7 @@ function render(info)
     
     //Deposit pass
     {
+	/*
 	let bindPointGroup = info.device.createBindGroup({
 	    label: 'bindGroup for point',
 	    layout: info.depositPipeline.getBindGroupLayout(0),
@@ -495,10 +485,38 @@ function render(info)
 	pass.setVertexBuffer(0, info.particleBuffer);
 	pass.setBindGroup(0, bindPointGroup);
 	pass.draw(PARTICLE_COUNT);
+	pass.setBindGroup(0, bindPointGroup);
+	pass.end();
+	const commandBuffer = encoder.finish();
+	info.device.queue.submit([commandBuffer]);
+	*/
+    }
+
+    //subtract pass
+    {
+	info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, 0.0, 1.0], 0);
+	info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
+	let bindPointGroup = info.device.createBindGroup({
+	    label: 'bindGroup for point',
+	    layout: info.subtractPipeline.getBindGroupLayout(0),
+	    entries: [
+		{ binding: 0, resource: {buffer : info.uniformBuffer}},
+	    ],
+	});
+
+	info.pointRenderPassDescriptor.colorAttachments[0].view = info.heightMap.createView();
+	const encoder = info.device.createCommandEncoder();
+	const pass = encoder.beginRenderPass(info.pointRenderPassDescriptor);
+	pass.setPipeline(info.subtractPipeline);
+	pass.setVertexBuffer(0, info.particleBuffer);
+	pass.setBindGroup(0, bindPointGroup);
+	pass.draw(PARTICLE_COUNT);
+	pass.setBindGroup(0, bindPointGroup);
 	pass.end();
 	const commandBuffer = encoder.finish();
 	info.device.queue.submit([commandBuffer]);
     }
+
 
 
     
@@ -670,7 +688,7 @@ async function setup()
 	//Swap read/write buffers
 	render(globalInfo);
 
-    }, 16);
+    }, 32);
     //render(globalInfo);
 
     return globalInfo;
