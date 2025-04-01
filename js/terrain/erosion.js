@@ -59,7 +59,7 @@ struct Particle {
 
 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(1) var<uniform> uTime: timeUniform;
-@group(0) @binding(2) var heightMap: texture_storage_2d<rgba8unorm, read>;
+@group(0) @binding(2) var heightMap: texture_storage_2d<rgba16float, read>;
 fn newRandomPos(uv : vec2f) -> vec2f {
      return vec2f(fract(sin(dot(vec2f(uv.xy), vec2f(12.9898, 78.233))) * 43758.5453),
                   fract(sin(dot(vec2f(uv.yx), vec2f(12.9898, 78.233))) * 43758.5453)) * 2.0 - 1.0;
@@ -69,8 +69,9 @@ fn calcGrad(coord: vec2u) -> vec2f {
   let here = textureLoad(heightMap, coord);
   let right = textureLoad(heightMap, coord + vec2u(1,0));
   let down = textureLoad(heightMap, coord + vec2u(0,1));
+  let MAX_16_INT = 32767.0;
 
-  return vec2f(here.r - right.r, here.r - down.r);
+  return vec2f(here.r - right.r, here.r - down.r) / MAX_16_INT;
 }
 
 @compute @workgroup_size(1) fn computeSomething(
@@ -82,24 +83,23 @@ fn calcGrad(coord: vec2u) -> vec2f {
     let coord = vec2u((updated.pos * 0.5 + 0.5) * ${textureSize});
     let grad = calcGrad(coord);
     updated.vel += 4.0 * grad * uTime.dt;
-    updated.volume *= 0.99;
+
     updated.pos += vec2f(updated.vel * uTime.dt * 1.0);
     let c = updated.sediment / updated.volume; //concentration
     let q = 0.5; //equilibrium
-    updated.sediment += (q-c)* 0.5;
-    //updated.sediment += (updated.sediment - q) * uTime.dt;
+    updated.sediment += (q - c) * updated.volume  * uTime.dt * 0.3;
     if (updated.pos.x > 1.0 ||
         updated.pos.x < -1.0 ||
         updated.pos.y > 1.0 ||
         updated.pos.y < -1.0 ||
-        updated.volume < 0.01)
+        updated.volume < 0.00001)
     {
         updated.pos = newRandomPos(updated.pos);
         updated.vel = vec2f(0.0,0.0);
         updated.volume = 1.0;
         updated.sediment = 0.0;
     }
-
+    updated.volume *= 0.95;
     particles[i] = updated;
 }
 `;
@@ -133,15 +133,18 @@ struct timeUniform {
   //vsOut.color = vec4f( uTime.dt * 2, vert.sediment,1.0,1.0);
   let c = vert.sediment / vert.volume;
   let q = 0.5; //equilibrium
-  let diff = (q - c) * 0.5;
+  var diff = -(q-c) * vert.volume * uTime.dt * 0.3;
   
-
+  if (vert.volume <= 0.00001)
+  {
+    diff = vert.sediment;
+  }
 
   if ((uTime.subtractMode == 1.0 && diff < 0.0) ||
       (uTime.subtractMode == 0.0 && diff > 0.0)
      )
    {
-      vsOut.color = vec4f( (diff),1.0,1.0,1.0);
+      vsOut.color = vec4f( abs(diff),1.0,vert.sediment,1.0);
    }
   else if ((uTime.subtractMode == 1.0 && diff > 0.0) ||
            (uTime.subtractMode == 0.0 && diff < 0.0))
@@ -178,12 +181,12 @@ struct VSOutput {
 };
 
 @group(0) @binding(0) var<uniform> uTime: timeUniform;
-@group(0) @binding(1) var heightMap: texture_storage_2d<rgba8unorm, read>;
+@group(0) @binding(1) var heightMap: texture_storage_2d<rgba16float, read>;
 
 @vertex fn vs(vert: Vertex,) -> VSOutput {
   var vsOut: VSOutput;
 
-  
+   let MAX_16_INT = 32767.0;
 let coord = vec2u(vert.position * vec2f(${textureSize}, ${textureSize}));
 let pixel = textureLoad(heightMap, coord);
 let height = pixel.r;
@@ -195,7 +198,7 @@ let pos = vec4f(vert.position.x, vert.position.y,
 
   /*let topColor = vec4f(0.6,0.9,0.6,1.0);
   let bottomColor = vec4f(0.4,0.2,0.2,1.0);*/
-  let topColor = vec4f(1.0,1.0,1.0,1.0);
+  let topColor = vec4f(1.0,1.0,pixel.b,1.0);
   let bottomColor = vec4f(0.0,0.0,1.0,1.0);
 
 
@@ -341,7 +344,7 @@ function initPointPipelines(device, presentationFormat)
 	    module,
 	    targets: [
 		{
-		    format: "rgba8unorm",
+		    format: "rgba16float",
 		    blend: {
 			color: {
 			    operation: 'add',
@@ -447,29 +450,9 @@ function render(info)
 	const commandBuffer = encoder.finish();
 	info.device.queue.submit([commandBuffer]);
     }
-
-    {
-	const bindGroup = info.device.createBindGroup({
-	    label: 'bindGroup for canvas',
-	    layout: info.updatePipeline.getBindGroupLayout(0),
-	    entries: [
-		{ binding: 0, resource:  {buffer :  info.particleBuffer}},
-		{ binding: 1, resource: {buffer : info.uniformBuffer}  },
-		{ binding: 2, resource: info.heightMap.createView()  },
-	    ],
-	});
-	let {renderPass, encoder} = beginRenderPass(info.device);
-	renderPass.setPipeline(info.updatePipeline);
-	renderPass.setBindGroup(0, bindGroup);
-	//renderPass.dispatchWorkgroups(canvasTexture.width * canvasTexture.height / 2);
-	renderPass.dispatchWorkgroups(PARTICLE_COUNT);
-	renderPass.end(info.device, encoder);
-	endRenderPass(info.device, encoder);
-    }
-    
     //Deposit pass
     {
-	/*
+
 	let bindPointGroup = info.device.createBindGroup({
 	    label: 'bindGroup for point',
 	    layout: info.depositPipeline.getBindGroupLayout(0),
@@ -489,12 +472,11 @@ function render(info)
 	pass.end();
 	const commandBuffer = encoder.finish();
 	info.device.queue.submit([commandBuffer]);
-	*/
     }
 
     //subtract pass
     {
-	info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, 0.0, 1.0], 0);
+	info.uniformValues.set([info.uniformValues[0], 0.02, 0.0, 1.0], 0);
 	info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
 	let bindPointGroup = info.device.createBindGroup({
 	    label: 'bindGroup for point',
@@ -516,6 +498,26 @@ function render(info)
 	const commandBuffer = encoder.finish();
 	info.device.queue.submit([commandBuffer]);
     }
+
+    {
+	const bindGroup = info.device.createBindGroup({
+	    label: 'bindGroup for canvas',
+	    layout: info.updatePipeline.getBindGroupLayout(0),
+	    entries: [
+		{ binding: 0, resource:  {buffer :  info.particleBuffer}},
+		{ binding: 1, resource: {buffer : info.uniformBuffer}  },
+		{ binding: 2, resource: info.heightMap.createView()  },
+	    ],
+	});
+	let {renderPass, encoder} = beginRenderPass(info.device);
+	renderPass.setPipeline(info.updatePipeline);
+	renderPass.setBindGroup(0, bindGroup);
+	//renderPass.dispatchWorkgroups(canvasTexture.width * canvasTexture.height / 2);
+	renderPass.dispatchWorkgroups(PARTICLE_COUNT);
+	renderPass.end(info.device, encoder);
+	endRenderPass(info.device, encoder);
+    }
+    
 
 
 
@@ -618,7 +620,7 @@ async function setup()
     
     const heightMap = device.createTexture({
 	label: "heightmap",
-	format: 'rgba8unorm',
+	format: 'rgba16float',
 	size: [textureSize, textureSize],
 	usage: GPUTextureUsage.COPY_DST |
 	    GPUTextureUsage.STORAGE_BINDING |
@@ -626,24 +628,77 @@ async function setup()
 	//alphaMode: 'premultiplied',
     });
 
-    const textureData = new Uint8Array(Array.from({length: textureSize * textureSize * 4},
-				   function(v,i) {
-				       return Math.max(0,Math.min(1,(perlin.get(i / 4 / textureSize / 30.0,
-					 i / 4 % textureSize / 30.0) * 0.5 + 0.5))) * 255})
-				       /*let x = i / 4 / textureSize / textureSize;
-				       let y = (i / 4) % (textureSize) / textureSize;
-				       return Math.max(0,
- 				       Math.min(1, y * 0.5 + x * 0.5)) * 255})*/
-						 );
+    function FloatToInt16Bits(significand)
+    {
+	//	https://stackoverflow.com/questions/20302904/converting-int-to-float-or-float-to-int-using-bitwise-operations-software-float
+//	let significand = new Int16Array(x);
+	let result = new Int16Array([1]);
+    if (significand == 0 || significand >= 65535)
+        significant += 1;
 
+	let shifts = 0;
+	for (let i = 0; ((significand & (1 << 9)) == 0) && i < 10; i++)
+    {
+        significand <<= 1;
+        shifts++;
+    }
+	let exponent = new Int16Array([15 + 9 - shifts]);
+	let merged = new Int16Array([(exponent << 9) | (significand & 0x7FFF)]);
+    return  merged;
+    }
+
+    console.log(FloatToInt16Bits(30.0));
+    let textureData = new Float32Array(Array.from({length: textureSize * textureSize * 4},
+						  function(v,i) {
+
+						      let x = i / 4 / textureSize / textureSize;
+						      let y = (i / 4) % (textureSize) / textureSize;
+						      let MAX_16_INT = 32767;
+						      let perlinVal = Math.max(0,
+									Math.min(1,
+								 (perlin.get(x * 4.0 ,
+									     y * 4.0 ))
+										) * 0.5 + 0.5);
+
+						      return perlinVal;
+						  })
+						 );
     console.log(textureData);
+    const tempTexture = device.createTexture({
+	label: "heightmap",
+	format: 'rgba32float',
+	size: [textureSize, textureSize],
+	usage: GPUTextureUsage.COPY_DST |
+	    GPUTextureUsage.COPY_SRC
+    });
     
     device.queue.writeTexture(
-	{texture:  heightMap },
+	{texture:  tempTexture },
 	textureData,
-	{ bytesPerRow: textureSize * 4 },
+	{ bytesPerRow: textureSize * 4 * 4 },
 	{ width: textureSize, height: textureSize },
     );
+    
+    const encoder = device.createCommandEncoder({
+	label: 'Transfer texture',
+    });
+
+    encoder.copyTextureToTexture(
+	{
+	    texture: tempTexture,
+	},
+	{
+	    texture: heightMap,
+	},
+	{
+	    width: textureSize,
+	    height: textureSize,
+	    depthOrArrayLayers: 1,
+	},
+    );
+    const commandBuffer = encoder.finish();
+    device.queue.submit([commandBuffer]);
+    
     var renderPassDescriptor = {
 	label: 'draw renderpass',
 	colorAttachments: [
@@ -688,7 +743,7 @@ async function setup()
 	//Swap read/write buffers
 	render(globalInfo);
 
-    }, 32);
+    }, 16);
     //render(globalInfo);
 
     return globalInfo;
