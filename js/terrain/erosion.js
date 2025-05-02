@@ -41,11 +41,11 @@ import {mat4} from 'https://webgpufundamentals.org/3rdparty/wgpu-matrix.module.j
 
 var textureSize = '128';
 var interval = null;
-var PARTICLE_COUNT = 2000;
+var PARTICLE_COUNT = 2;
 const particleUpdateShader = `struct timeUniform {
         time: f32,
         dt: f32,
-        sensorAngle: f32,
+        depSpeed: f32,
         agentSpeed: f32,
         cameraMat: mat4x4f
     };
@@ -59,19 +59,22 @@ struct Particle {
 
 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(1) var<uniform> uTime: timeUniform;
-@group(0) @binding(2) var heightMap: texture_storage_2d<rgba16float, read>;
+@group(0) @binding(2) var heightMap: texture_storage_2d<rgba8unorm, read>;
 fn newRandomPos(uv : vec2f) -> vec2f {
      return vec2f(fract(sin(dot(vec2f(uv.xy), vec2f(12.9898, 78.233))) * 43758.5453),
                   fract(sin(dot(vec2f(uv.yx), vec2f(12.9898, 78.233))) * 43758.5453)) * 2.0 - 1.0;
 }
 
-fn calcGrad(coord: vec2u) -> vec2f {
-  let here = textureLoad(heightMap, coord);
-  let right = textureLoad(heightMap, coord + vec2u(1,0));
-  let down = textureLoad(heightMap, coord + vec2u(0,1));
-  let MAX_16_INT = 32767.0;
+fn calcHeight(pixel: vec4f) -> f32 {
+   return f32(pixel.r * 65280 + pixel.g * 255) / 65535.0;
+}
 
-  return vec2f(here.r - right.r, here.r - down.r) / MAX_16_INT;
+fn calcGrad(coord: vec2u) -> vec2f {
+  let here = calcHeight(textureLoad(heightMap, coord));
+  let right = calcHeight(textureLoad(heightMap, coord + vec2u(1,0)));
+  let down = calcHeight(textureLoad(heightMap, coord + vec2u(0,1)));
+
+  return vec2f(here - right, here - down);
 }
 
 @compute @workgroup_size(1) fn computeSomething(
@@ -82,12 +85,12 @@ fn calcGrad(coord: vec2u) -> vec2f {
     var updated = particles[i];
     let coord = vec2u((updated.pos * 0.5 + 0.5) * ${textureSize});
     let grad = calcGrad(coord);
-    updated.vel += 4.0 * grad * uTime.dt;
-
+    updated.vel += 1.0 * grad * uTime.dt;
+//    updated.vel *= 0.7;
     updated.pos += vec2f(updated.vel * uTime.dt * 1.0);
     let c = updated.sediment / updated.volume; //concentration
-    let q = 0.5; //equilibrium
-    updated.sediment += (q - c) * updated.volume  * uTime.dt * 0.3;
+    let q = 0.5;
+    updated.sediment += (q - c) * updated.volume  * uTime.dt * uTime.depSpeed;
     if (updated.pos.x > 1.0 ||
         updated.pos.x < -1.0 ||
         updated.pos.y > 1.0 ||
@@ -119,10 +122,16 @@ struct VSOutput {
 struct timeUniform {
         time: f32,
         dt: f32,
-        sensorAngle: f32,
+        depSpeed: f32,
         subtractMode: f32,
         cameraMat: mat4x4f,
     };
+
+fn calcHeight(height: f32) -> vec2f {
+   let intHeight = u32(height * 65535);
+   //0xff00 and 0x00ff respectively
+   return vec2f(f32((intHeight & 65280u) >> 8), f32(intHeight & 255u));
+}
 
 @group(0) @binding(0) var<uniform> uTime: timeUniform;
 
@@ -132,8 +141,8 @@ struct timeUniform {
   vsOut.position = position;//vec4f(vert.pos, 0.0, 1.0);
   //vsOut.color = vec4f( uTime.dt * 2, vert.sediment,1.0,1.0);
   let c = vert.sediment / vert.volume;
-  let q = 0.5; //equilibrium
-  var diff = -(q-c) * vert.volume * uTime.dt * 0.3;
+  let q = 0.5;// + dot(vert.vel, vert.vel) * 0.2; //equilibrium
+  var diff = -(q-c) * vert.volume * uTime.dt * uTime.depSpeed;
   
   if (vert.volume <= 0.00001)
   {
@@ -144,14 +153,18 @@ struct timeUniform {
       (uTime.subtractMode == 0.0 && diff > 0.0)
      )
    {
-      vsOut.color = vec4f( abs(diff),1.0,vert.sediment,1.0);
+      let encodedDiff = calcHeight(abs(diff));
+      vsOut.color = vec4f( encodedDiff,vert.sediment,1.0);
    }
   else if ((uTime.subtractMode == 1.0 && diff > 0.0) ||
            (uTime.subtractMode == 0.0 && diff < 0.0))
    {
-     vsOut.color = vec4f(0.0,1.0,1.0,1.0);
+     vsOut.color = vec4f(0.0,0.0,vert.sediment,1.0);
    }
-
+   if (uTime.subtractMode == 0.0)
+    {
+        vsOut.color.b = abs(vert.sediment) * 1000.0;
+    }
   return vsOut;
 }
 
@@ -179,30 +192,55 @@ struct VSOutput {
   @location(0) color: vec4f,
 
 };
+fn calcHeight(pixel: vec4f) -> f32 {
+   return f32(pixel.r * 65280 + pixel.g * 255) / 65535.0;
+}
+
 
 @group(0) @binding(0) var<uniform> uTime: timeUniform;
-@group(0) @binding(1) var heightMap: texture_storage_2d<rgba16float, read>;
+@group(0) @binding(1) var heightMap: texture_storage_2d<rgba8unorm, read>;
 
 @vertex fn vs(vert: Vertex,) -> VSOutput {
   var vsOut: VSOutput;
 
-   let MAX_16_INT = 32767.0;
 let coord = vec2u(vert.position * vec2f(${textureSize}, ${textureSize}));
 let pixel = textureLoad(heightMap, coord);
-let height = pixel.r;
+let height = calcHeight(pixel);
 let pos = vec4f(vert.position.x, vert.position.y,
   height * 0.4, 1.0);
 
   
   vsOut.position = uTime.cameraMat * pos;
 
-  /*let topColor = vec4f(0.6,0.9,0.6,1.0);
-  let bottomColor = vec4f(0.4,0.2,0.2,1.0);*/
-  let topColor = vec4f(1.0,1.0,pixel.b,1.0);
+
+
+  let topColor = vec4f(1.0,0.0,0.0,1.0);
   let bottomColor = vec4f(0.0,0.0,1.0,1.0);
+  let middleColor = vec4f(1.0,1.0,1.0,1.0);
+  let pitColor = vec4f(0.2,0.2,0.6,1.0);
+/*
+  let topColor = vec4f(0.0,0.0,0.0,1.0);
+  let bottomColor = vec4f(0.0,0.0,0.0,1.0);
+  let middleColor = vec4f(0.0,0.0,0.0,1.0);
+  let pitColor = vec4f(0.0,0.0,0.0,1.0);
+*/
 
-
-  vsOut.color = mix(bottomColor, topColor, smoothstep(0,1,height));
+//let p = smoothstep(0,1,height);
+let p = smoothstep(0,1,pixel.b);
+if (p < 0.5)
+        {
+            vsOut.color = middleColor * (p * 2.0) + bottomColor * (0.5 - p) * 2.0;
+        }
+        else
+        {
+            vsOut.color = topColor * (p - 0.5) * 2.0 + middleColor * (1.0 - p) * 2.0;
+        }
+if (p < 0.2)
+{
+ vsOut.color = pitColor;
+}
+  //  vsOut.color = mix(bottomColor, topColor, smoothstep(0,1,height));
+//   vsOut.color.g = pixel.b;
   return vsOut;
 }
 
@@ -344,7 +382,7 @@ function initPointPipelines(device, presentationFormat)
 	    module,
 	    targets: [
 		{
-		    format: "rgba16float",
+		    format: "rgba8unorm",
 		    blend: {
 			color: {
 			    operation: 'add',
@@ -416,14 +454,12 @@ function render(info)
       [0.5, 0.5, 0],    // target
       [0, 0, 1],    // up
       );
-    /*const view = mat4.lookAt(
-      [1.5, 1.5, 1],  // position
-      [0.0, 0.0, 0],    // target
-      [0, 0, 1],    // up
-    );*/
+
     const viewProjection = mat4.multiply(projection, view);
 
-    info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, 0.0, 0.0], 0);
+    const depSpeed = 0.5;
+    
+    info.uniformValues.set([info.uniformValues[0] + 0.02, 0.02, depSpeed, 0.0], 0);
     mat4.rotateZ(viewProjection, 0, info.matrixValue);
     info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
 
@@ -476,7 +512,7 @@ function render(info)
 
     //subtract pass
     {
-	info.uniformValues.set([info.uniformValues[0], 0.02, 0.0, 1.0], 0);
+	info.uniformValues.set([info.uniformValues[0], 0.02, depSpeed, 1.0], 0);
 	info.device.queue.writeBuffer(info.uniformBuffer, 0, info.uniformValues);
 	let bindPointGroup = info.device.createBindGroup({
 	    label: 'bindGroup for point',
@@ -590,9 +626,9 @@ async function setup()
     var particleSize = 6;
     var particles = new Float32Array(PARTICLE_COUNT * 6);
     offset = 0;
-    for (let i = 0; i < PARTICLE_COUNT; ++i) {
-	particles[offset + 0] = rand(-1,1);
-	  particles[offset + 1] = rand(-1,1);
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+	particles[offset + 0] = rand(-1.0,1.0);
+	particles[offset + 1] = rand(-1.0,1.0);
 	
 	/*particles[offset + 0] = 0.7;
 	particles[offset + 1] = -0.7;*/
@@ -620,7 +656,7 @@ async function setup()
     
     const heightMap = device.createTexture({
 	label: "heightmap",
-	format: 'rgba16float',
+	format: 'rgba8unorm',
 	size: [textureSize, textureSize],
 	usage: GPUTextureUsage.COPY_DST |
 	    GPUTextureUsage.STORAGE_BINDING |
@@ -628,27 +664,8 @@ async function setup()
 	//alphaMode: 'premultiplied',
     });
 
-    function FloatToInt16Bits(significand)
-    {
-	//	https://stackoverflow.com/questions/20302904/converting-int-to-float-or-float-to-int-using-bitwise-operations-software-float
-//	let significand = new Int16Array(x);
-	let result = new Int16Array([1]);
-    if (significand == 0 || significand >= 65535)
-        significant += 1;
 
-	let shifts = 0;
-	for (let i = 0; ((significand & (1 << 9)) == 0) && i < 10; i++)
-    {
-        significand <<= 1;
-        shifts++;
-    }
-	let exponent = new Int16Array([15 + 9 - shifts]);
-	let merged = new Int16Array([(exponent << 9) | (significand & 0x7FFF)]);
-    return  merged;
-    }
-
-    console.log(FloatToInt16Bits(30.0));
-    let textureData = new Float32Array(Array.from({length: textureSize * textureSize * 4},
+    let textureData = new Uint8Array(Array.from({length: textureSize * textureSize * 4},
 						  function(v,i) {
 
 						      let x = i / 4 / textureSize / textureSize;
@@ -658,46 +675,20 @@ async function setup()
 									Math.min(1,
 								 (perlin.get(x * 4.0 ,
 									     y * 4.0 ))
-										) * 0.5 + 0.5);
+										) * 0.5 + 0.5) * 255;
 
 						      return perlinVal;
 						  })
 						 );
     console.log(textureData);
-    const tempTexture = device.createTexture({
-	label: "heightmap",
-	format: 'rgba32float',
-	size: [textureSize, textureSize],
-	usage: GPUTextureUsage.COPY_DST |
-	    GPUTextureUsage.COPY_SRC
-    });
     
     device.queue.writeTexture(
-	{texture:  tempTexture },
+	{texture:  heightMap },
 	textureData,
-	{ bytesPerRow: textureSize * 4 * 4 },
+	{ bytesPerRow: textureSize * 4 * 1 },
 	{ width: textureSize, height: textureSize },
     );
     
-    const encoder = device.createCommandEncoder({
-	label: 'Transfer texture',
-    });
-
-    encoder.copyTextureToTexture(
-	{
-	    texture: tempTexture,
-	},
-	{
-	    texture: heightMap,
-	},
-	{
-	    width: textureSize,
-	    height: textureSize,
-	    depthOrArrayLayers: 1,
-	},
-    );
-    const commandBuffer = encoder.finish();
-    device.queue.submit([commandBuffer]);
     
     var renderPassDescriptor = {
 	label: 'draw renderpass',

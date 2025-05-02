@@ -14,22 +14,22 @@ var projectData = [
     {
 	title : "Thesis: Ambient Occlusion",
 	imgSrc: "img/AO.png",
-	link: "#"
+	link: "https://hdl.handle.net/10222/84905"
     },
     {
 	title : "Thesis: Subdivision Surfaces",
 	imgSrc: "img/subdivision.png",
-	link: "#"
+	link: "https://hdl.handle.net/10222/84905"
     },
     {
 	title : "Thesis: Similar Mesh Retrieval",
 	imgSrc: "img/similarity.png",
-	link: "#"
+	link: "https://hdl.handle.net/10222/84905"
     },
     {
 	title : "Thesis: Brittle Fracture",
 	imgSrc: "img/fracture_2.png",
-	link: "#"
+	link: "https://hdl.handle.net/10222/84905"
     },
     {
 	title : "Slime Mold Simulation",

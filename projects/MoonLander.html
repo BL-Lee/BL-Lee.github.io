@@ -1,0 +1,70 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type = "text/css" href="../css/style.css">
+    <link rel="stylesheet" type = "text/css" href="../css/project-style.css">
+    <script src="../js/d3.v7.js"></script>
+    <title>D3 Moon Lander</title>
+  </head>
+  <div class="garden">
+  <div class="ball"></div>
+  </div>
+  <style>
+    .garden {
+	position: relative;
+	width: 200px;
+	height: 200px;
+	border: 5px solid #ccc;
+	border-radius: 10px;
+    }
+
+    .ball {
+	position: absolute;
+	top: 90px;
+	left: 90px;
+	width: 20px;
+	height: 20px;
+	background: green;
+	border-radius: 100%;
+    }
+  </style>
+Hold the device parallel to the ground. Rotate along its x and y axes to see the
+ball move up/down and left/right respectively.
+<pre class="output"></pre>
+  <body style="overflow: hidden; width: 100vw; height: 100vh; margin:auto; display:flex;">
+    <svg viewBox="0 0 800 800" style="height: 98%; width: 98%; margin:auto; background-color: black; ">
+      <style>
+	.text{
+	    font: bold 30px sans-serif;
+	    stroke:white;
+	    fill:white;
+	}
+	</style>
+      <text x="20" y="40" class="text" id="scoreText">SCORE: 0 </text>
+      <text x="20" y="80" class="text" id="multiplierText">MULTIPLIER: </text>
+      <text x="20" y="120" class="text" id="multiplierText">FUEL: </text>
+      <rect x="120" y="100" width="200" height="20" fill="white" id="fuelbar"/>
+
+      <text x="50" y="300" class="text" id="successText"></text>
+      <text x="50" y="340" class="text" id="successTextMult"></text>
+      <path d="M 0 0 L 0 800 L 800 800 L 800 0 L 0 0" stroke="white" fill="none"/>
+      <g id="lander" transform="rotate(0 0 0)
+               translate(400 80.0)
+               scale(1 1)">
+	<circle cx="0" cy="0" r="10" stroke="white" stroke-width="3"/>
+	<line x1="7.07" x2="10" y1="7.07" y2="20" stroke="white" stroke-width="3"/>
+	<line x1="-7.07" x2="-10" y1="7.07" y2="20" stroke="white" stroke-width="3"/>
+	<path id="flames" d="M 4.99 8.66 L 0 20 L -4.99 8.66" stroke="black" stroke-width="3"/>
+      </g>
+      <g id="explosion">
+      </g>
+<!--      <circle id="testCircle" cx="0" cy="0" r="2" stroke="pink" stroke-width="5"/>-->
+      <g id="ground">
+      </g>
+    </svg>
+    <script type="text/javascript" src="../js/moon_lander.js"> </script>
+  </body>
+</html>
