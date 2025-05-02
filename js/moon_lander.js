@@ -98,30 +98,30 @@ function handleOrientation(event)
     const maxX = garden.clientWidth - ball.clientWidth;
     const maxY = garden.clientHeight - ball.clientHeight;
 
-     let x = event.alpha; // In degree in the range [-180,180)
-  let y = event.gamma; // In degree in the range [-90,90)
+     let xa = event.alpha; // In degree in the range [-180,180)
+  let ya = event.gamma; // In degree in the range [-90,90)
 
-  output.textContent = `beta: ${x}\n`;
-  output.textContent += `gamma: ${y}\n`;
+    //    d3.select(".output").text("beta: " + xa + " gamma: " + ya);
+    d3.select(".output").text("hi?");
 
   // Because we don't want to have the device upside down
   // We constrain the x value to the range [-90,90]
-  if (x > 90) {
-    x = 90;
+  if (xa > 90) {
+    xa = 90;
   }
-  if (x < -90) {
-    x = -90;
+  if (xa < -90) {
+    xa = -90;
   }
 
   // To make computation easier we shift the range of
   // x and y to [0,180]
-  x += 90;
-  y += 90;
+  xa += 90;
+  ya += 90;
 
   // 10 is half the size of the ball
   // It centers the positioning point to the center of the ball
-  ball.style.left = `${(maxY * y) / 180 - 10}px`; // rotating device around the y axis moves the ball horizontally
-  ball.style.top = `${(maxX * x) / 180 - 10}px`; // rotating device around the x axis moves the ball vertically
+  ball.style.left = `${(maxY * ya) / 180 - 10}px`; // rotating device around the y axis moves the ball horizontappplly
+  ball.style.top = `${(maxX * xa) / 180 - 10}px`; // rotating device around the x axis moves the ball vertically
 }
 function setupLander()
 {
