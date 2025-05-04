@@ -36,6 +36,12 @@ var SKIP_AND_WIN = false;
 var score = 0;
 var multiplier = 1;
 
+var thrusterStrength = 0.0;
+var dragStartX = 0;
+var dragStartY = 0;
+var isDragging = false;
+var dragXDiff = 0.0;
+
 var fuelRemaining = 100;
 var fuelBurnRate = 20;
 var fuelBar;
@@ -89,40 +95,36 @@ function setupGround()
 	.attr("d", getPath(d3.path()));    
 
 }
-function handleOrientation(event)
+
+function handleStart(e)
 {
-    const ball = document.querySelector(".ball");
-    const garden = document.querySelector(".garden");
-    const output = document.querySelector(".output");
-
-    const maxX = garden.clientWidth - ball.clientWidth;
-    const maxY = garden.clientHeight - ball.clientHeight;
-
-     let xa = event.alpha; // In degree in the range [-180,180)
-  let ya = event.gamma; // In degree in the range [-90,90)
-
-    //    d3.select(".output").text("beta: " + xa + " gamma: " + ya);
-    d3.select(".output").text("hi?");
-
-  // Because we don't want to have the device upside down
-  // We constrain the x value to the range [-90,90]
-  if (xa > 90) {
-    xa = 90;
-  }
-  if (xa < -90) {
-    xa = -90;
-  }
-
-  // To make computation easier we shift the range of
-  // x and y to [0,180]
-  xa += 90;
-  ya += 90;
-
-  // 10 is half the size of the ball
-  // It centers the positioning point to the center of the ball
-  ball.style.left = `${(maxY * ya) / 180 - 10}px`; // rotating device around the y axis moves the ball horizontappplly
-  ball.style.top = `${(maxX * xa) / 180 - 10}px`; // rotating device around the x axis moves the ball vertically
+    if (e.touches)
+    {
+	console.log(e.touches[0].pageX + " " +  e.touches[0].pageY);
+	dragStartX = e.touches[0].pageX;
+	dragStartY = e.touches[0].pageY;
+	isDragging = true;
+    }
 }
+
+function handleMove(e)
+{
+    if (e.touches)
+    {
+	let yDiff = (dragStartY - e.touches[0].pageY) / (canvHeight / 4.0);
+	thrusterStrength = Math.min(1.0,Math.max(0, yDiff));
+	let xDiff = (dragStartX - e.touches[0].pageX) / (canvWidth / 2.0);
+	dragXDiff = -xDiff;
+    }
+}
+
+function handleEnd(e)
+{
+    isDragging = false;
+}
+
+
+
 function setupLander()
 {
 
@@ -138,8 +140,14 @@ function setupLander()
     explosion = d3.select("#explosion");
     explosion.selectAll("g").selectAll("line").attr("visibility","hidden");
     flames = d3.select("#flames");
-    window.addEventListener("deviceorientation", handleOrientation);
 
+    const el = document.querySelector("svg");
+    el.addEventListener("touchstart", handleStart);
+    el.addEventListener("touchmove", handleMove);
+    el.addEventListener("touchend", handleEnd);
+//    el.addEventListener("touchcancel", handleCancel);
+
+    
     document.onkeydown = function (e) {
 	e = e || window.event;
 	if (e.key == "a")
@@ -152,6 +160,7 @@ function setupLander()
 	}
 	if (e.key == "w")
 	{
+	    thrusterStrength = 1.0;
 	    wPressed = true;
 	}
 	if (e.key == "e")
@@ -177,6 +186,7 @@ function setupLander()
 	}
 	if (e.key == "w")
 	{
+	    thrusterStrength = 0.0;
 	    wPressed = false;
 	}
 
@@ -190,20 +200,28 @@ function setupLander()
 function update()
 {
 
-    if (dPressed)
+    if (isDragging) //mobile
     {
-	rotation += 1.0 * dt;
+	rotation += 1.0 * dt * dragXDiff;
     }
-    if (aPressed)
+    else //keyboard
     {
-	rotation -= 1.0 * dt;
+	if (dPressed)
+	{
+	    rotation += 1.0 * dt;
+	}
+	if (aPressed)
+	{
+	    rotation -= 1.0 * dt;
+	}
     }
-    if (wPressed && fuelRemaining > 0.1)
+    if ((wPressed || isDragging) && fuelRemaining > 0.1)
     {
-	yVel += thrusterPower * dt * Math.cos(rotation) * -1.0;
-	xVel += thrusterPower * dt * Math.sin(rotation);
+	let upStr = thrusterPower * thrusterStrength * dt;
+	yVel += upStr * Math.cos(rotation) * -1.0;
+	xVel += upStr * Math.sin(rotation);
 	flames.attr("stroke", "white");
-	fuelRemaining = Math.max(0,fuelRemaining - (fuelBurnRate * dt));
+	fuelRemaining = Math.max(0,fuelRemaining - (fuelBurnRate * thrusterStrength * dt));
     }
     else
 	flames.attr("stroke", "black");
