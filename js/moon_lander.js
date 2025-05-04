@@ -11,7 +11,7 @@ var rotation = 0;
 var fr = 30;
 var dt = 1 / fr;
 var msDt = Math.floor(dt * 1000);
-
+var roundNumber = 0;
 var lander;
 var aPressed = false;
 var dPressed = false;
@@ -34,7 +34,10 @@ var roundDoneTimer = 0.0;
 var SKIP_AND_WIN = false;
 
 var score = 0;
+var highScore = 0;
 var multiplier = 1;
+
+var wind = 0;
 
 var thrusterStrength = 0.0;
 var dragStartX = 0;
@@ -45,6 +48,8 @@ var dragXDiff = 0.0;
 var fuelRemaining = 100;
 var fuelBurnRate = 20;
 var fuelBar;
+
+
 function getHeightAtPoint(xC)
 {
 
@@ -72,7 +77,13 @@ function setupGround()
 
     for (let i = 0; i < segLength - 1; i += 1)
     {
+	let doFlat = Math.random();
 	let val = segments[i] + (Math.random() * 2.0 - 1.0)  * 30;
+	if (doFlat < 0.33)
+	{
+	    val = segments[i];
+	}
+
 	if (val < 0)
 	    val = Math.random() * 10;
 	segments[i] += 80;
@@ -91,9 +102,9 @@ function setupGround()
     d3.select("#ground").selectAll("path").remove();
     ground = d3.select("#ground").append("path")
 	.style("stroke", "white")
+    	.style("stroke-width", 4)
 	.style("fill", "none")
 	.attr("d", getPath(d3.path()));    
-
 }
 
 function handleStart(e)
@@ -113,7 +124,7 @@ function handleMove(e)
     {
 	let yDiff = (dragStartY - e.touches[0].pageY) / (canvHeight / 4.0);
 	thrusterStrength = Math.min(1.0,Math.max(0, yDiff));
-	let xDiff = (dragStartX - e.touches[0].pageX) / (canvWidth / 2.0);
+	let xDiff = (dragStartX - e.touches[0].pageX) / (canvWidth / 4.0);
 	dragXDiff = -xDiff;
     }
 }
@@ -127,7 +138,6 @@ function handleEnd(e)
 
 function setupLander()
 {
-
     d3.select("#multiplierText").text("MULTIPLIER: " + multiplier);
     d3.select("#successText").text("");
     d3.select("#successTextMult").text("");
@@ -141,6 +151,15 @@ function setupLander()
     explosion.selectAll("g").selectAll("line").attr("visibility","hidden");
     flames = d3.select("#flames");
 
+    if (roundNumber > 0)
+    {
+	wind = ((Math.random() * 2.0 - 1.0) * 10.0).toFixed(2);
+    }
+    else
+    {
+	wind = 0;
+    }
+    d3.select("#wind").text("WIND: " + wind);
     const el = document.querySelector("svg");
     el.addEventListener("touchstart", handleStart);
     el.addEventListener("touchmove", handleMove);
@@ -240,9 +259,11 @@ function update()
 
     fuelBar.attr("width", fuelRemaining / 100.0 * 200.0);
     yVel += grav * dt;
+    xVel += wind * dt;
     x += xVel * dt;
     y += yVel * dt;
 
+    xVel *= 0.9995 * (1 - dt);
     let hitGround = false;
     for (let i = 0; i < testPoints.length; i++)
     {
@@ -274,8 +295,8 @@ function update()
 	p1[1] += y;
 	let h1 = getHeightAtPoint(p1[0]);
 
-	if (Math.abs(h0 - p0[1]) < 4.0 &&
-	    Math.abs(h1 - p1[1]) < 4.0)
+	if (Math.abs(h0 - p0[1]) < 5.0 &&
+	    Math.abs(h1 - p1[1]) < 5.0)
 	{
 	    console.log("success!");
 	    success();
@@ -312,7 +333,7 @@ function success()
     roundInterval = setInterval(function() {
 	successUpdate();
     }, msDt);
-
+    roundNumber += 1;
     
 }
 function successUpdate()
@@ -330,6 +351,7 @@ function successUpdate()
 
 function explode()
 {
+    roundNumber = 0;
     lineCount = 10;
     explosionRots = [];
     for (let i = 0; i < lineCount; i += 1)
@@ -339,6 +361,9 @@ function explode()
 			    0,0
 			   ]);
     }
+    highScore = Math.max(score, highScore);
+    d3.select("#successText").text("CRASHED").attr("stroke", "white");
+    d3.select("#successTextMult").text("HIGH SCORE: " + highScore).attr("stroke", "white");
 
     explosion.selectAll("g").data(explosionRots).enter().append("g").append("line")
 	.attr("x0", 0)
@@ -346,7 +371,7 @@ function explode()
     	.attr("y0", 0)
     	.attr("y1", 20)
 	.attr("stroke", "white")
-	.attr("stroke-width", 3)
+	.attr("stroke-width", 4)
     explosion.selectAll("g").selectAll("line").attr("visibility", "visible");
     
     
@@ -364,7 +389,8 @@ function explosionUpdate()
     }
     
     roundDoneTimer += dt;
-    if (roundDoneTimer > 2.0)
+    
+    if (roundDoneTimer > 7.0)
     {
 	clearInterval(roundInterval);
 	setupGround();
