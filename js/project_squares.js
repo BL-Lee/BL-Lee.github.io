@@ -12,6 +12,12 @@
 
 var projectData = [
     {
+	title : "Moon Lander",
+	imgSrc: "img/lander.png",
+	link: "projects/MoonLander.html"
+    },
+
+    {
 	title : "Thesis: Ambient Occlusion",
 	imgSrc: "img/AO.png",
 	link: "https://hdl.handle.net/10222/84905"
