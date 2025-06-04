@@ -9,9 +9,15 @@ var shipProjectile = {};
 //export var enemyProjectiles = [];
 export async function resetShips(scene, camera)
 {
+    for (let i = 0; i < enemyShips.length; i++)
+    {
+	const proj = enemyShips[i].mesh.projectile;
+	console.log(enemyShips[i]);
+	scene.remove(proj.mesh);
+    }
     enemyShips = [];
     enemyShipObjs = [];
-
+    
     await initShips(scene, camera);
     console.log("reset ships");
 }
@@ -31,15 +37,8 @@ export async function initShips(scene, camera)
     }
     for (let i = 0; i < 4; i++)
     {
-	
-	
 	let ship = {}
 
-	/*
-
-	OJ.loadObj("ship_2", ship);
-	
-	await OJ.waitUntilLoaded(ship);*/
 	enemyShips.push(ship);	
 	ship.name = "ship" + i;
 	ship.mesh = shipTemplate.mesh.clone(true);
@@ -57,7 +56,13 @@ export async function initShips(scene, camera)
 	    polygonOffsetUnits: 1
 
 	});
-	projectile.mesh.traverse(c => {if (c.isMesh) c.material = projectileMaterial});
+	projectile.mesh.traverse(c => {
+	    if (c.isMesh) {
+		c.material = projectileMaterial;
+		c.top = projectile;
+	    }
+	});
+
 	console.log(projectile);
 	ship.mesh.projectile = projectile;
 	

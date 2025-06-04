@@ -23,8 +23,11 @@ var gunObj = {};
 var fireSound = null;
 var roundMissCounter = 0;
 var roundDelay = 0.0;
-
-
+window.onerror = function(msg, url, linenumber) {
+    console.log("err");
+    document.getElementById("errorLog").textContent += 'Error message: '+msg+'\nURL: '+url+'\nLine Number: '+linenumber + "\n";
+    return true;
+}
 function initScene()
 {
     scene = new THREE.Scene();
@@ -162,7 +165,6 @@ function animate() {
     if (shipsDead == SP.enemyShips.length && SP.enemyShips.length == 4)
     {
 	resetRound();
-
     }
     UI.hitLabelUpdate(dt);
     dt = 0;
@@ -206,10 +208,6 @@ function onMouseClick(e) {
     
     if (intersects)
     {
-	if (intersects.length == 0)
-	{
-	    roundMissCounter += 1;
-	}
 	for (let i = 0; i < intersects.length; i++)
 	{
 	    SP.handleShipHit(intersects[i]);
@@ -217,7 +215,23 @@ function onMouseClick(e) {
 	}
     }
     const projIntersects = HP.hitDetectShips(screenPos, camera, raycaster, SP.activeProjectiles())
-    console.log(projIntersects);
+    if (projIntersects)
+    {
+	for (let i = 0; i < projIntersects.length; i++)
+	{
+	    const proj = projIntersects[i].object.top;
+	    proj.exploding = true;
+	    proj.explodingTime = 0.5;
+	    console.log(proj.mesh.children[0]);
+	    proj.mesh.children[0].material.color.setHex(0x0000ff);
+	    UI.showHit(projIntersects[i].object.parent); //Hitting back and front
+	}
+    }
+    if (intersects && intersects.length == 0 &&
+	projIntersects && projIntersects.length == 0)
+    {
+	roundMissCounter += 1;
+    }
 
     let nextLaser = gunObj.lasers[gunObj.laserIndex];
     nextLaser.mesh.material.opacity = 1.0;

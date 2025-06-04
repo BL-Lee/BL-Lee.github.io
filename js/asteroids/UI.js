@@ -66,6 +66,25 @@ export function initUI(scene, camera)
     scene.add(hitLabel);
 
     
+    const multDom = document.createElement( 'div' );
+    multDom.className = 'label';
+    multDom.textContent = 'Accuracy Multiplier : ';
+    multDom.style.backgroundColor = 'transparent';
+    multDom.style.color = "white";
+    multDom.style.opacity = 0.0;
+    UIElements.mult = multDom;
+    
+    const multLabel = new CSS2DObject( multDom );
+    screenPos = HP.getCoordFromMousePoint(
+	new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2 - 80), 2, camera
+    );
+    multLabel.position.copy(screenPos);
+
+    UIElements.multLabel = multLabel;
+    multLabel.layers.set(0);
+    scene.add(multLabel);
+
+    
     UIRenderer = new CSS2DRenderer();
     UIRenderer.setSize( window.innerWidth, window.innerHeight );
     UIRenderer.domElement.style.position = 'absolute';
@@ -106,10 +125,12 @@ export function calculateMultiplier(missCount, camera)
     UIElements.hit.style.opacity = 1;
     UIMultTicker = 1;
     updateScore(roundScore);
+    UIElements.mult.style.opacity = 1;
 }
 
 export function resetRound()
 {
+    UIElements.mult.style.opacity = 0;
     roundScore = 0;
 }
 
@@ -120,6 +141,7 @@ export function multiplierUpdate(dt)
     if (multTime <= 0.0)
     {
 	UIElements.hit.textContent = roundScore * UIMultTicker;
+	UIElements.mult.textContent = "Accuracy Multiplier : " + UIMultTicker + "x";
 
 	if (UIMultTicker < roundMult)
 	{
