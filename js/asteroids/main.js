@@ -1,4 +1,20 @@
-import * as THREE from 'three';
+
+window.onerror = function(msg, url, linenumber) {
+    console.log(msg);
+    document.getElementById("errorLog").textContent += 'Error message: '+msg+'\nURL: '+url+'\nLine Number: '+linenumber + "\n";
+    return true;
+}
+
+//alert("hi");
+/*if (HTMLScriptElement.supports && HTMLScriptElement.supports('importmap')){
+    alert("we support it");
+}
+else {
+    alert("we dont support it");
+}*/
+
+import * as THREE from "../../modules/three/build/three.module.js";
+//import * as THREE from "three";
 
 import * as UI from "./UI.js";
 import * as HP from "./helpers.js";
@@ -23,11 +39,8 @@ var gunObj = {};
 var fireSound = null;
 var roundMissCounter = 0;
 var roundDelay = 0.0;
-window.onerror = function(msg, url, linenumber) {
-    console.log("err");
-    document.getElementById("errorLog").textContent += 'Error message: '+msg+'\nURL: '+url+'\nLine Number: '+linenumber + "\n";
-    return true;
-}
+var playerHitTime = 0.0;
+var inbetweenGames = true;
 function initScene()
 {
     scene = new THREE.Scene();
@@ -114,11 +127,25 @@ function resetRound()
     roundDelay = 3.0;
 }
 
+function startGame()
+{
+    UI.resetGame();
+    SP.resetShips(scene,camera);
+}
 
 function animate() {
     dt += clock.getDelta();
     if (dt < 1 / 20)
 	return;
+
+    if (inbetweenGames)
+    {
+	renderer.render(scene,camera);
+	UI.UIRenderer.render( scene, camera );
+	roundDelay -= dt;
+	dt = 0;
+	return;
+    }
     
     if (roundDelay > 0.0)
     {
@@ -140,6 +167,22 @@ function animate() {
     if (!SP.shipsLoadedCheck(scene))
 	return;
 
+    if (playerHitTime > 0.0)
+    {
+	playerHitTime -= dt;
+	if (playerHitTime <= 0.0)
+	{
+	    const color = new THREE.Color(0xff0000);
+	    color.lerp(new THREE.Color(0xCCAA88), UI.health / 7);
+	    gunObj.mesh.material.color.copy(color);
+	}
+    }
+    if (SP.playerHit)
+    {
+	gunObj.mesh.material.color.setHex(0xff0000);
+	playerHitTime = 0.2;
+	SP.resetPlayerHit();
+    }
     
     mouseUpdate();
 
@@ -166,6 +209,13 @@ function animate() {
     {
 	resetRound();
     }
+    if (UI.health <= 0)
+    {
+	UI.showHighScore();
+	SP.resetShips(scene, camera);
+	inbetweenGames = true;
+	roundDelay = 1.0;
+    }
     UI.hitLabelUpdate(dt);
     dt = 0;
     renderer.render(scene,camera);
@@ -186,6 +236,14 @@ function onMouseMove(e){
 
 
 function onMouseClick(e) {
+    if (roundDelay > 0.0)
+	return;
+    if (inbetweenGames)
+    {
+	inbetweenGames = false;
+	startGame();
+	return;
+    }
     if (e.touches)
     {
 	mousePointer.x = e.touches[0].clientX;
@@ -268,7 +326,7 @@ else{
 await SP.initShips(scene, camera);
 renderer.setAnimationLoop(animate);
 UI.initUI(scene, camera);
-UI.updateHealth(10);
+UI.updateHealth(0);
 
 document.onkeypress = function(e) {
     e = e || window.event;
@@ -277,3 +335,5 @@ document.onkeypress = function(e) {
 	console.log(renderer.info);
     }
 }
+
+

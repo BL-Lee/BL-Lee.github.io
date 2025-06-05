@@ -1,7 +1,10 @@
-import * as THREE from 'three';
-import {STLLoader} from 'three/addons/loaders/STLLoader.js';
+import * as THREE from "../../modules/three/build/three.module.js";
+
+/*import {STLLoader} from 'three/addons/loaders/STLLoader.js';
 //import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';*/
+import {STLLoader} from '../../modules/three/examples/jsm/loaders/STLLoader.js';
+import {OBJLoader} from '../../modules/three/examples/jsm/loaders/OBJLoader.js';
 const loader = new STLLoader();
 const OBJloader = new OBJLoader();
 const material = new THREE.MeshBasicMaterial({

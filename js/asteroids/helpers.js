@@ -1,4 +1,5 @@
-import * as THREE from 'three';
+
+import * as THREE from "../../modules/three/build/three.module.js";
 export const randomBilateral = () => Math.random() * 2 - 1;
 export function getCoordFromMousePoint(point, depth, camera)
 {

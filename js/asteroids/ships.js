@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "../../modules/three/build/three.module.js";
 import * as OJ from "./loaders.js";
 import * as HP from "./helpers.js";
 import * as UI from "./UI.js";
@@ -6,20 +6,31 @@ export var enemyShips = [];
 export var enemyShipObjs = [];
 var shipTemplate = {};
 var shipProjectile = {};
+export var playerHit = false;
 //export var enemyProjectiles = [];
+export function resetPlayerHit()
+{
+    playerHit = false;
+}
 export async function resetShips(scene, camera)
 {
+    console.log("reset ships");
     for (let i = 0; i < enemyShips.length; i++)
     {
 	const proj = enemyShips[i].mesh.projectile;
 	console.log(enemyShips[i]);
 	scene.remove(proj.mesh);
+	if (!enemyShips[i].dead)
+	{
+	    scene.remove(enemyShips[i].mesh);
+	    OJ.freeObject(enemyShips[i].mesh);
+	}
     }
     enemyShips = [];
     enemyShipObjs = [];
     
     await initShips(scene, camera);
-    console.log("reset ships");
+
 }
 
 export async function initShips(scene, camera)
@@ -47,7 +58,7 @@ export async function initShips(scene, camera)
 	projectile.name = "projectile" + i;
 	projectile.mesh = shipProjectile.mesh.clone(true);
 	let projectileMaterial = new THREE.MeshBasicMaterial({
-	    color: '#ff4444',
+	    color: '#dd7777',
 	    side: THREE.DoubleSide,
 	    alphaHash: true,
 	    opacity: 1.0,
@@ -65,9 +76,6 @@ export async function initShips(scene, camera)
 
 	console.log(projectile);
 	ship.mesh.projectile = projectile;
-	
-	//scene.add(ship.mesh)
-	//console.log(ship);
 
 	let screenPos = new THREE.Vector2(Math.random() * 0.7 + 0.2,
 					Math.random() * 0.4 + 0.4);
@@ -101,9 +109,19 @@ export async function initShips(scene, camera)
 	
 
 	ship.mesh.hit = false;
+	let shipMat = new THREE.MeshBasicMaterial({
+	    color: '#CA8',
+	    side: THREE.DoubleSide,
+	    polygonOffset: true,
+	    polygonOffsetFactor: 1,
+	    polygonOffsetUnits: 1
+	});
+
 	ship.mesh.traverse(c => {
 	    c.velocity = new THREE.Vector3(0,0,0);
 	    c.angularVelocity = new THREE.Vector3(0,0,0);
+	    if (c.isMesh)
+		c.material = shipMat;
 	})
 	ship.doneLoading = true;
     }
@@ -138,22 +156,21 @@ function projectileUpdate(ship, scene, dt)
 	    proj.exploding = false;
 	    mat.opacity = 1.0;
 	    mesh.scale.set(1,1,1);
-	    mat.color.setHex(0xff4444);
+	    mat.color.setHex(0xdd7777);
 	}
     }
     else
     {
-    
 	const playerPos = new THREE.Vector3(0.0,-0.75,4.5);
 	const dir = playerPos.clone().sub(mesh.position).normalize();
-	mesh.position.add(dir.multiplyScalar(dt * 5));
-
+	mesh.position.add(dir.multiplyScalar(dt * 4));
 	if (mesh.position.distanceToSquared(playerPos) < 1)
 	{
 	    proj.exploding = true;
 	    proj.explodingTime = 0.5;
 	    UI.updateHealth(-1);
-	    
+	    mesh.children[0].material.color.setHex(0xff0000);
+	    playerHit = true;
 	}
     }
 }

@@ -1,21 +1,30 @@
-import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import * as THREE from 'three';
+import { CSS2DRenderer, CSS2DObject } from '../../modules/three/examples/jsm/renderers/CSS2DRenderer.js';
+import * as THREE from "../../modules/three/build/three.module.js";
+
 import * as HP from "./helpers.js";
 export var UIElements = {};
 export var UIRenderer;// = new THREE.CSS2DRenderer();
 export var score = 0;
 export var roundMult = 0;
 var multTime = 0;
-export var health = 9;
-export var roundScore = 0;
+export var health = 7;
+export var roundScore = 10;
+export var highScore = 0;
 var UIMultTicker = 1;
+export function resetGame()
+{
+    resetRound();
+    score = 0;
+    health = 7;
+    const startPrompt = document.getElementById("startPrompt");
+    startPrompt.textContent = "Tap/Click to Start";
+    startPrompt.style.opacity = 0;
+}
 export function initUI(scene, camera)
 {
     const healthDom = document.createElement( 'div' );
     healthDom.className = 'label';
     healthDom.textContent = 'HEALTH : ';
-    healthDom.style.backgroundColor = 'transparent';
-    healthDom.style.color = "white";
     UIElements.health = healthDom;
     
     const healthLabel = new CSS2DObject( healthDom );
@@ -32,8 +41,6 @@ export function initUI(scene, camera)
     const scoreDom = document.createElement( 'div' );
     scoreDom.className = 'label';
     scoreDom.textContent = 'SCORE : ';
-    scoreDom.style.backgroundColor = 'transparent';
-    scoreDom.style.color = "white";
     UIElements.score = scoreDom;
     
     const scoreLabel = new CSS2DObject( scoreDom );
@@ -50,8 +57,6 @@ export function initUI(scene, camera)
     const hitDom = document.createElement( 'div' );
     hitDom.className = 'label';
     hitDom.textContent = '10';
-    hitDom.style.backgroundColor = 'transparent';
-    hitDom.style.color = "white";
     hitDom.style.opacity = 0.5;
     UIElements.hit = hitDom;
     
@@ -69,8 +74,6 @@ export function initUI(scene, camera)
     const multDom = document.createElement( 'div' );
     multDom.className = 'label';
     multDom.textContent = 'Accuracy Multiplier : ';
-    multDom.style.backgroundColor = 'transparent';
-    multDom.style.color = "white";
     multDom.style.opacity = 0.0;
     UIElements.mult = multDom;
     
@@ -113,9 +116,9 @@ export function showHit(ship)
     UIElements.hitLabel.position.copy(ship.position);
     UIElements.hitLabel.position.y += 2;
     UIElements.hit.style.opacity = 1;
-    UIElements.hit.textContent = 10;
-    updateScore(10);
-    roundScore += 10;
+    UIElements.hit.textContent = roundScore;
+//    updateScore(score);
+    roundScore += 10 + Math.floor(roundScore / 10);
 }
 export function calculateMultiplier(missCount, camera)
 {
@@ -131,7 +134,8 @@ export function calculateMultiplier(missCount, camera)
 export function resetRound()
 {
     UIElements.mult.style.opacity = 0;
-    roundScore = 0;
+    UIElements.hit.style.fontSize = "2vh";
+    roundScore = 10;
 }
 
 export function multiplierUpdate(dt)
@@ -142,7 +146,7 @@ export function multiplierUpdate(dt)
     {
 	UIElements.hit.textContent = roundScore * UIMultTicker;
 	UIElements.mult.textContent = "Accuracy Multiplier : " + UIMultTicker + "x";
-
+	UIElements.hit.style.fontSize = UIMultTicker + 1 + "vh";
 	if (UIMultTicker < roundMult)
 	{
 	    UIMultTicker += 1;
@@ -161,4 +165,16 @@ export function updateHealth(diff)
 	str += "=";
     }
     UIElements.health.textContent = str;
+}
+export function showHighScore()
+{
+    highScore = Math.max(highScore, score);
+    UIElements.mult.textContent = "HIGH SCORE : " + highScore;
+    UIElements.hit.textContent = "SCORE : " + score;
+    UIElements.hitLabel.position.copy(new THREE.Vector3(0,0,0));
+    UIElements.hit.style.opacity = 1;
+    UIElements.mult.style.opacity = 1;
+    const startPrompt = document.getElementById("startPrompt");
+    startPrompt.style.opacity = 1;
+    
 }
