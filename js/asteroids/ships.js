@@ -7,18 +7,26 @@ export var enemyShipObjs = [];
 var shipTemplate = {};
 var shipProjectile = {};
 export var playerHit = false;
+export var roundProjSpeed = 0.4;
 //export var enemyProjectiles = [];
 export function resetPlayerHit()
 {
     playerHit = false;
 }
+export function increaseDifficulty()
+{
+    roundProjSpeed = Math.min(0.85, roundProjSpeed + 0.05);
+}
+export function resetDifficulty()
+{
+    roundProjSpeed = 0.4;
+}
+
 export async function resetShips(scene, camera)
 {
-    console.log("reset ships");
     for (let i = 0; i < enemyShips.length; i++)
     {
 	const proj = enemyShips[i].mesh.projectile;
-	console.log(enemyShips[i]);
 	scene.remove(proj.mesh);
 	if (!enemyShips[i].dead)
 	{
@@ -35,7 +43,6 @@ export async function resetShips(scene, camera)
 
 export async function initShips(scene, camera)
 {
-    console.log("loading ships");
     if (!shipTemplate.mesh) //first time
     {
 	OJ.loadObj("ship_2", shipTemplate);
@@ -53,7 +60,6 @@ export async function initShips(scene, camera)
 	enemyShips.push(ship);	
 	ship.name = "ship" + i;
 	ship.mesh = shipTemplate.mesh.clone(true);
-	console.log(ship);
 	let projectile = {};
 	projectile.name = "projectile" + i;
 	projectile.mesh = shipProjectile.mesh.clone(true);
@@ -74,7 +80,6 @@ export async function initShips(scene, camera)
 	    }
 	});
 
-	console.log(projectile);
 	ship.mesh.projectile = projectile;
 
 	let screenPos = new THREE.Vector2(Math.random() * 0.7 + 0.2,
@@ -133,6 +138,13 @@ export async function initShips(scene, camera)
 function shipShoot(ship, scene)
 {
     ship.projectile.mesh.position.copy(ship.position);
+    const playerPos = new THREE.Vector3(0.0,-0.75,4.5);
+    ship.projectile.path = new THREE.QuadraticBezierCurve3(
+	ship.position.clone(),
+	playerPos.clone().add(ship.position).divideScalar(2).add(new THREE.Vector3(0.0, 4.0, 0.0)),
+	playerPos,
+    );
+    ship.projectile.pathInterp = 0;
     scene.add(ship.projectile.mesh);
     ship.projectile.active = true;
 }
@@ -162,9 +174,10 @@ function projectileUpdate(ship, scene, dt)
     else
     {
 	const playerPos = new THREE.Vector3(0.0,-0.75,4.5);
-	const dir = playerPos.clone().sub(mesh.position).normalize();
-	mesh.position.add(dir.multiplyScalar(dt * 4));
-	if (mesh.position.distanceToSquared(playerPos) < 1)
+	//const dir = playerPos.clone().sub(mesh.position).normalize();
+	//mesh.position.add(dir.multiplyScalar(dt * 4));
+	proj.pathInterp += dt * roundProjSpeed;
+	if (proj.pathInterp > 1.0 || mesh.position.distanceToSquared(playerPos) < 1)
 	{
 	    proj.exploding = true;
 	    proj.explodingTime = 0.5;
@@ -172,6 +185,11 @@ function projectileUpdate(ship, scene, dt)
 	    mesh.children[0].material.color.setHex(0xff0000);
 	    playerHit = true;
 	}
+	else
+	{
+	    proj.path.getPointAt(proj.pathInterp, mesh.position);
+	}
+
     }
 }
 
@@ -185,7 +203,6 @@ export function shipUpdate(ship, scene, dt)
     
     if (ship.hit)
     {
-
 	ship.deathTime += dt;
 	if (ship.deathTime > 1.00)
 	{
@@ -204,8 +221,6 @@ export function shipUpdate(ship, scene, dt)
     }
     else if (!ship.dead)
     {
-	if (!ship.path)
-	    console.log(ship);
 	ship.path.getPointAt(ship.flightInterp, ship.position);
 	const nextInterp = (ship.flightInterp + dt * 0.2) % 1.0;
 	let nextPos = ship.path.getPointAt(nextInterp);
@@ -260,13 +275,13 @@ export function handleShipHit(intersection)
     baseObj.traverse(c => {
 	if (c.isMesh)
 	{
-	    c.velocity = new THREE.Vector3(HP.randomBilateral() * 5,
-					   HP.randomBilateral() * 5,
-					   HP.randomBilateral() * 5);
+	    c.velocity = new THREE.Vector3(HP.randomBilateral() * 3,
+					   HP.randomBilateral() * 3,
+					   HP.randomBilateral() * 3);
 	    c.angularVelocity = new THREE.Vector3(
-		HP.randomBilateral() * 10,
-		HP.randomBilateral() * 10,
-		HP.randomBilateral() * 10
+		HP.randomBilateral() * 4,
+		HP.randomBilateral() * 4,
+		HP.randomBilateral() * 4
 	    );
 	}
     })

@@ -10,9 +10,11 @@ var multTime = 0;
 export var health = 7;
 export var roundScore = 10;
 export var highScore = 0;
+export var round = 1;
 var UIMultTicker = 1;
 export function resetGame()
 {
+    round = 1;
     resetRound();
     score = 0;
     health = 7;
@@ -118,7 +120,7 @@ export function showHit(ship)
     UIElements.hit.style.opacity = 1;
     UIElements.hit.textContent = roundScore;
 //    updateScore(score);
-    roundScore += 10 + Math.floor(roundScore / 10);
+    roundScore += 10 + Math.floor(roundScore / 10) + round * 5;
 }
 export function calculateMultiplier(missCount, camera)
 {
@@ -129,6 +131,7 @@ export function calculateMultiplier(missCount, camera)
     UIMultTicker = 1;
     updateScore(roundScore);
     UIElements.mult.style.opacity = 1;
+    round += 1;
 }
 
 export function resetRound()

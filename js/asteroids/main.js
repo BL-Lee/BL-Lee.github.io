@@ -1,20 +1,5 @@
 
-window.onerror = function(msg, url, linenumber) {
-    console.log(msg);
-    document.getElementById("errorLog").textContent += 'Error message: '+msg+'\nURL: '+url+'\nLine Number: '+linenumber + "\n";
-    return true;
-}
-
-//alert("hi");
-/*if (HTMLScriptElement.supports && HTMLScriptElement.supports('importmap')){
-    alert("we support it");
-}
-else {
-    alert("we dont support it");
-}*/
-
 import * as THREE from "../../modules/three/build/three.module.js";
-//import * as THREE from "three";
 
 import * as UI from "./UI.js";
 import * as HP from "./helpers.js";
@@ -41,6 +26,20 @@ var roundMissCounter = 0;
 var roundDelay = 0.0;
 var playerHitTime = 0.0;
 var inbetweenGames = true;
+function initAudio()
+{
+    const listener = new THREE.AudioListener();
+    camera.add( listener );
+
+    fireSound = new THREE.Audio( listener );
+    //load a sound and set it as the Audio object's buffer
+    const audioLoader = new THREE.AudioLoader();
+    audioLoader.load( '../js/asteroids/audio/player_fire.mp3', function( buffer ) {
+	fireSound.setBuffer( buffer );
+	fireSound.setLoop( false );
+	fireSound.setVolume( 0.5 );
+    });
+}
 function initScene()
 {
     scene = new THREE.Scene();
@@ -57,16 +56,6 @@ function initScene()
       20
     );
 
-    const listener = new THREE.AudioListener();
-    camera.add( listener );
-    fireSound = new THREE.Audio( listener );
-    //load a sound and set it as the Audio object's buffer
-    const audioLoader = new THREE.AudioLoader();
-    audioLoader.load( '../js/asteroids/audio/player_fire.wav', function( buffer ) {
-	fireSound.setBuffer( buffer );
-	fireSound.setLoop( false );
-	fireSound.setVolume( 0.5 );
-    });
     
     const light = new THREE.AmbientLight( 0xffffff ); // soft white light
     scene.add( light );
@@ -125,12 +114,14 @@ function resetRound()
     UI.calculateMultiplier(roundMissCounter);
     SP.resetShips(scene,camera);
     roundDelay = 3.0;
+    SP.increaseDifficulty();
 }
 
 function startGame()
 {
     UI.resetGame();
     SP.resetShips(scene,camera);
+    SP.resetDifficulty();
 }
 
 function animate() {
@@ -149,13 +140,11 @@ function animate() {
     
     if (roundDelay > 0.0)
     {
-	console.log("round update");
 	UI.multiplierUpdate(dt);
 	UI.UIRenderer.render( scene, camera );
 	roundDelay -= dt;
 	if (roundDelay <= 0.0)
 	{
-	    console.log("done round reset");
 	    UI.resetRound();
 	    roundMissCounter = 0;
 	}
@@ -244,6 +233,7 @@ function onMouseClick(e) {
 	startGame();
 	return;
     }
+    if (!fireSound) initAudio(); //need gesture before audio can init?
     if (e.touches)
     {
 	mousePointer.x = e.touches[0].clientX;
@@ -280,7 +270,6 @@ function onMouseClick(e) {
 	    const proj = projIntersects[i].object.top;
 	    proj.exploding = true;
 	    proj.explodingTime = 0.5;
-	    console.log(proj.mesh.children[0]);
 	    proj.mesh.children[0].material.color.setHex(0x0000ff);
 	    UI.showHit(projIntersects[i].object.parent); //Hitting back and front
 	}
@@ -328,12 +317,5 @@ renderer.setAnimationLoop(animate);
 UI.initUI(scene, camera);
 UI.updateHealth(0);
 
-document.onkeypress = function(e) {
-    e = e || window.event;
-    if (e.keyCode == 13)
-    {
-	console.log(renderer.info);
-    }
-}
 
 
