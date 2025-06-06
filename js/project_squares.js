@@ -11,11 +11,13 @@
 */
 
 var projectData = [
+
     {
-	title : "Moon Lander",
-	imgSrc: "img/lander.png",
-	link: "projects/MoonLander.html"
+	title : "Spaceship Defender",
+	imgSrc: "img/ship.gif",
+	link: "projects/asteroids.html"
     },
+
 
     {
 	title : "Thesis: Ambient Occlusion",
@@ -37,14 +39,21 @@ var projectData = [
 	imgSrc: "img/fracture_2.png",
 	link: "https://hdl.handle.net/10222/84905"
     },
-    {
+        {
 	title : "Slime Mold Simulation",
-	imgSrc: "img/slime.png",
+	imgSrc: "img/slime.gif",
 	link: "webgpu_example.html"
     },
+
+    {
+	title : "Moon Lander",
+	imgSrc: "img/lander.png",
+	link: "projects/MoonLander.html"
+    },
+
     {
 	title : "Vulkan Game Engine",
-	imgSrc: "img/ray.bmp",
+	imgSrc: "img/vulkan.png",
 	link: "https://github.com/BL-Lee/V2Engine"
     },
     {
